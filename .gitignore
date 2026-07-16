@@ -5,3 +5,4 @@ publish.cmd
 # Source data stays local — only data/catalog.json and images/ (thumbnails) are published
 Product Images/
 Price Sheets/
+tools/node_modules/
