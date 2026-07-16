@@ -39,7 +39,7 @@ function identify(imgPath) {
       `Ignore per-bag net weight, price, and sell-by dates (they vary bag to bag). ` +
       `Reply with ONLY minified JSON, no other text: ` +
       `{"product":"<what it is>","details":"<brand/pack details if visible>",` +
-      `"search_query":"<2 to 5 lowercase words, catalog-style, flavor and color words omitted>",` +
+      `"search_query":"<2 to 5 lowercase words, catalog-style; KEEP variety words that name the product (maple granola, garlic salt); omit colors and marketing words>",` +
       `"core_query":"<1 or 2 lowercase words, the generic product noun>"}`;
     const p = spawn(CLAUDE, ['-p', prompt, '--model', 'haiku', '--allowedTools', 'Read'], {
       cwd: path.dirname(imgPath),

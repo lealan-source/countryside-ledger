@@ -107,8 +107,11 @@
       if (it.lbs) sizes.push({ n: it.lbs, unit: 'lb' });
       if (it.pack) for (const sz of tokenize(it.pack).sizes) sizes.push(sz);
       const text = (it.name + ' ' + it.cat).toLowerCase();
+      const nameSet = new Set(name.words);
+      for (const w of tokenize(it.brand || '').words) nameSet.add(w);
+      const catSet = new Set(catWords);
       return {
-        nameWords: name.words, all, brandWords, sizes,
+        nameWords: name.words, all, brandWords, sizes, nameSet, catSet,
         candy: CANDY_SIGNAL.test(text) || /candy/i.test(it.cat || ''),
         care: CARE_SIGNAL.test(text),
         upcs: (it.u ? it.u.split('|') : []).map(u => u.replace(/^0+/, '')),
@@ -121,16 +124,25 @@
     return { items: N };
   }
 
-  function creditFor(qw, itemWords) {
-    if (itemWords.has(qw)) return 1;
+  const EMPTY_SET = new Set();
+  // Name (and brand) matches carry full credit; a match found only in the
+  // vendor's category gets partial credit — being FILED under Granola must
+  // never outrank being NAMED Granola.
+  function creditFor(qw, nameSet, catSet) {
+    catSet = catSet || EMPTY_SET;
+    if (nameSet.has(qw)) return 1;
     const g = SYN_GROUP.get(qw);
     if (g !== undefined) {
-      for (const w of itemWords) if (SYN_GROUP.get(w) === g) return 0.9;
+      for (const w of nameSet) if (SYN_GROUP.get(w) === g) return 0.9;
     }
     if (qw.length >= 5) {
-      for (const w of itemWords) {
+      for (const w of nameSet) {
         if (w.length >= 5 && w[0] === qw[0] && editDistance1(qw, w)) return 0.75;
       }
+    }
+    if (catSet.has(qw)) return 0.72;
+    if (g !== undefined) {
+      for (const w of catSet) if (SYN_GROUP.get(w) === g) return 0.62;
     }
     return 0;
   }
@@ -177,7 +189,7 @@
       let got = 0;
       const matchedWords = [];
       for (let k = 0; k < Q.words.length; k++) {
-        const c = creditFor(Q.words[k], m.all);
+        const c = creditFor(Q.words[k], m.nameSet, m.catSet);
         if (c > 0) matchedWords.push(Q.words[k]);
         got += c * qIdf[k];
       }

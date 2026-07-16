@@ -143,6 +143,19 @@ console.log('— pack class —');
     blocks.filter(it => !it.bulk).slice(0, 2).map(it => it.name).join('; '));
 }
 
+console.log('— name beats category —');
+{
+  const hits = q('granola');
+  const top5 = hits.slice(0, 5);
+  check('"granola" top 5 all have granola in the NAME',
+    top5.length > 0 && top5.every(h => /granola|grand-ola/i.test(h.it.name)),
+    'top: ' + top5.map(h => h.it.name.slice(0, 30)).join(' | '));
+  const hits2 = q('natural maple granola');
+  check('"natural maple granola" → Grand-ola on top (the store repack case)',
+    hits2.length > 0 && /maple grand-ola granola|maple granola/i.test(hits2[0].it.name),
+    'top: ' + (hits2[0] ? hits2[0].it.name : 'none'));
+}
+
 console.log('— exact codes —');
 {
   const hits = q('838273000102');
