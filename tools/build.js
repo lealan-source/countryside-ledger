@@ -203,6 +203,116 @@ function titleCase(s) {
   return s.toLowerCase().replace(/(^|[\s/&-])[a-z]/g, c => c.toUpperCase());
 }
 
+/* ---------- shelf life ----------
+   Frontier provides vendor shelf-life data; for everything else we apply
+   food-storage rules by product type (days; 9999 = doesn't expire).
+   Rule-derived values are flagged est=1 and display as "Keeps ~N months". */
+const NO_SHELF = /twist tie|bags? plastic|bags? paper|bags? poly|container|foam |gloves|apron|table cover|scoop|scale\b|labels?\b|sign\b|display\b|rack\b|cookbook|candle|soap|shampoo|lotion|deodorant|toothpaste|tooth powder|first aid|supplement|vitamin|\bpet\b|dog |cat |bird seed|wild animal|merchandis|packaging|boxes\b|\bcups?\b|\blids?\b|utensil|napkin|straw\b|toothpick|batting|filters?\b|essential oil|diffuser|castile|cleaner|detergent|canning (jar|lid|supplies)|jar\b|pectin box/i;
+const SHELF_RULES = [
+  // meats & refrigerated / frozen
+  [/\bjerky\b|meat stick|snack stick/i, 365],
+  [/frozen|\bfz\b|\biqf\b/i, 270],
+  [/shredded cheese/i, 60],
+  [/cheese|cheddar|colby|swiss|mozzarella|gouda|provolone|monterey|parmesan|feta/i, 120],
+  [/yogurt.{0,20}(coated|covered|raisin|pretzel|chip|cluster|star|celebration|animal|bite|malt)|(coated|covered).{0,12}yogurt/i, 365],
+  [/soup (starter|blend|mix)/i, 540],
+  [/oatmeal|\boats\b/i, 365],
+  [/nutritional yeast/i, 720],
+  [/(?<!peanut |almond |cashew |apple |cookie |fruit |cocoa )butter\b(?! mints?| toffee| flavor| rum| brickle|scotch)|margarine|yogurt\b(?!.{0,14}(coated|covered|raisin|pretzel|chip|cluster))|kefir|sour cream|cream cheese|heavy cream|whipping cream|half & half|cottage/i, 90],
+  [/bologna|deli |\bham\b|hot dog|wiener|sausage(?! seasoning| mix)|pepperoni|salami|bacon\b|bratwurst|kielbasa/i, 75],
+  [/\beggs?\b(?! noodle| replacer| powder)/i, 35],
+  [/pickle|sauerkraut|relish|olives/i, 365],
+  // baking
+  [/whole wheat flour|rye flour|spelt flour|buckwheat flour/i, 180],
+  [/almond flour|coconut flour|flax.*meal|wheat germ|\bbran\b/i, 240],
+  [/\bflour\b|cornmeal|corn meal|semolina|\bmasa\b|starch\b/i, 365],
+  [/baking powder|baking soda|cream of tartar/i, 720],
+  [/yeast\b|rennet/i, 540],
+  [/powdered sugar|confectioner|brown sugar/i, 540],
+  [/\bsugar\b|sweetener|stevia|erythritol|xylitol|saccharin/i, 9999],
+  [/\bsalt\b/i, 9999],
+  [/\bhoney\b/i, 9999],
+  [/maple syrup|pancake syrup|corn syrup|molasses|sorghum|agave/i, 540],
+  [/extract\b|flavoring|flavor oil|food color/i, 730],
+  [/gelatin|pudding|jello|danish\b/i, 540],
+  [/(cake|muffin|pancake|baking|brownie|bread|cookie|donut|doughnut|waffle|biscuit|roll|scone|cornbread) mix/i, 365],
+  [/pie filling|fillings?\b/i, 730],
+  [/frosting|icing/i, 365],
+  [/shortening|lard\b/i, 730],
+  [/\boil\b|olive oil|coconut oil|canola/i, 365],
+  // grains & staples
+  [/steel cut|oat groats/i, 365],
+  [/\boats\b|oatmeal|granola(?! bar)/i, 365],
+  [/granola bar|protein bar|energy bar/i, 240],
+  [/\bcereal\b/i, 270],
+  [/brown rice|wild rice/i, 180],
+  [/\brice\b/i, 730],
+  [/pasta|macaroni|spaghetti|noodle|penne|rotini|lasagna|shells\b|orzo|couscous/i, 730],
+  [/(?<!coffee |chocolate |cocoa )\bbeans?\b(?! coffee)|lentil|split pea|chickpea|garbanzo|black.?eyed/i, 730],
+  [/popcorn/i, 730],
+  [/wheat kernel|wheat berr|barley|millet|quinoa|farro|rye berr|\bgrains?\b|tapioca/i, 540],
+  // nuts, seeds, dried fruit
+  [/walnut|pecan/i, 180],
+  [/peanut butter|almond butter|nut butter|tahini/i, 270],
+  [/peanut|almond|cashew|pistachio|macadamia|brazil nut|hazelnut|filbert|mixed nut|pine nut/i, 270],
+  [/sunflower (kernel|meat|seed)|pumpkin seed|pepita|sesame seed|chia|flax ?seed|hemp/i, 270],
+  [/raisin|craisin|dried|dehydrated|banana chip|\bdates?\b|\bfigs?\b|apricot|prune/i, 365],
+  [/coconut\b/i, 365],
+  // candy & chocolate
+  [/chocolate|carob|cocoa|fudge|buckeye/i, 365],
+  [/marshmallow/i, 210],
+  [/gumm(y|i)|jell(s\b|y bean)|sour \w|licorice|taffy|caramel|toffee|candy|lollipop|sucker|mints?\b|butterscotch|peppermint|spearmint leaves/i, 365],
+  // snacks
+  [/potato chip|corn chip|tortilla chip|cheese (curl|ball|puff)|puffs?\b|cracklin|pork rind/i, 90],
+  [/pretzel|sesame stick|trail mix|snack mix|party mix/i, 180],
+  [/cracker|wafer|cookie|shortbread/i, 240],
+  // pantry wet
+  [/\bjams?\b|\bjell(y|ies)\b|preserves|fruit butter|apple butter|marmalade/i, 540],
+  [/salsa|sauce|ketchup|catsup|mustard|mayo|dressing|marinade|\bbbq\b/i, 365],
+  [/canned|in syrup|in juice|#10 can|\bcan\b/i, 1095],
+  [/vinegar/i, 9999],
+  [/broth|bouillon|soup base|gravy/i, 540],
+  [/(soup|dip|seasoning|dressing|chili) mix/i, 540],
+  // beverages
+  [/coffee/i, 365],
+  [/\btea\b|chai/i, 720],
+  [/drink mix|lemonade mix|cappuccino|cocoa mix|cider mix|dandy blend/i, 720],
+  [/juice|cider(?! vinegar)/i, 365],
+  [/soda\b|sparkling|spring water/i, 270],
+  // dairy powders & spices (broad, last)
+  [/dry milk|milk powder|egg powder|buttermilk powder|whey|egg replacer/i, 365],
+  [/peppercorn|whole (clove|allspice|nutmeg)|cinnamon stick/i, 1095],
+  [/spice|seasoning|powder\b|paprika|cumin|oregano|basil|thyme|parsley|chili powder|cinnamon|ginger|turmeric|\bherbs?\b|garlic|onion flake|\bleaf\b|\broot\b/i, 1095],
+];
+function estimateShelf(text) {
+  if (NO_SHELF.test(text)) return null;
+  for (const [re, days] of SHELF_RULES) if (re.test(text)) return days;
+  return null;
+}
+let shelfFromVendor = 0, shelfFromRules = 0, shelfNone = 0;
+for (const o of offers) {
+  if (o.shelfDays) { o.shelfEst = 0; shelfFromVendor++; continue; }
+  const est = estimateShelf(o.name + ' ' + o.cat);
+  if (est) { o.shelfDays = est; o.shelfEst = 1; shelfFromRules++; }
+  else { o.shelfEst = 0; shelfNone++; }
+}
+console.log(`shelf life — vendor: ${shelfFromVendor}, rules: ${shelfFromRules}, none: ${shelfNone}`);
+// accuracy check: where Frontier gave vendor data AND a rule matches, compare
+{
+  const diffs = [];
+  for (const o of offers) {
+    if (o.v !== 'fr' || !o.shelfDays || o.shelfEst) continue;
+    const est = estimateShelf(o.name + ' ' + o.cat);
+    if (!est || est >= 9000 || o.shelfDays >= 9000) continue;
+    diffs.push(Math.abs(est - o.shelfDays) / o.shelfDays);
+  }
+  if (diffs.length) {
+    diffs.sort((a, b) => a - b);
+    const within = diffs.filter(d => d <= 0.5).length;
+    console.log(`rule-vs-vendor check on ${diffs.length} Frontier items: median delta ${(diffs[Math.floor(diffs.length / 2)] * 100).toFixed(0)}%, within ±50%: ${(within / diffs.length * 100).toFixed(0)}%`);
+  }
+}
+
 /* ---------- image index: vendor:sku → file path ---------- */
 const IMG_DIRS = { 'Dutch Valley': 'dv', 'Gateway': 'gw', 'Walnut Creek': 'wc', 'Frontier': 'fr' };
 const imgIndex = new Map();
@@ -237,7 +347,7 @@ const V = ['dv', 'gw', 'wc', 'fr'];
 const items = offers.map(o => [
   V.indexOf(o.v), o.sku, o.name, o.brand, o.cat, o.pack,
   o.lbs, o.price, o.perLb, o.bulk ? 1 : 0, o.img ? 1 : 0, o.shelfDays,
-  o.stock, o.upcs.join('|'), o.brk || 0,
+  o.stock, o.upcs.join('|'), o.brk || 0, o.shelfEst || 0,
 ]);
 fs.mkdirSync(PROJ + '/data', { recursive: true });
 fs.writeFileSync(PROJ + '/data/catalog.json', JSON.stringify({ v: V, generated: '2026-07-16', items }));

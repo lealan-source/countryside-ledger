@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://api.anthropic.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
@@ -406,7 +407,7 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
     </div>
     <div class="d-sec">PHOTO SEARCH</div>
     <div class="d-field"><label for="cfgKey">API KEY</label><input id="cfgKey" type="password" placeholder="sk-ant-… (optional)" autocomplete="off"></div>
-    <div class="d-note">On the office PC, photos use the store's Claude sign-in for free. On the phone, paste an API key from console.anthropic.com — about a quarter of a cent per photo. The key stays on this device only.</div>
+    <div class="d-note">With an API key saved (console.anthropic.com), photos are answered in a few seconds on any device — about a quarter of a cent each. Without one, the office PC falls back to the store's Claude sign-in (free, but slower). The key stays on this device only.</div>
     <div class="d-note">To update prices, drop the new sheet in the Price Sheets folder and re-import — order and hidden vendors are remembered on this device.</div>
   </div>
 </div>
@@ -499,8 +500,10 @@ const imgSrc = it => it.img ? `images/${it.v}/${encodeURIComponent(it.sku)}.webp
 const thumbHTML = it => `<span class="thumb">${it.img ? `<img loading="lazy" decoding="async" src="${imgSrc(it)}" alt="" onerror="this.remove()">` : ''}</span>`;
 const shelfLine = it => {
   if (!it.shelf) return '';
+  if (it.shelf >= 9000) return 'Keeps indefinitely — dry & sealed';
+  const t = it.shelfEst ? '~' : '';   // ~ marks a typical value; no ~ means vendor-stated
   const mo = Math.round(it.shelf / 30.4);
-  return mo >= 24 ? `Keeps ${Math.round(mo / 12)} years` : mo >= 2 ? `Keeps ${mo} months` : `Keeps ${it.shelf} days`;
+  return mo >= 24 ? `Keeps ${t}${Math.round(mo / 12)} years` : mo >= 2 ? `Keeps ${t}${mo} months` : `Keeps ${t}${it.shelf} days`;
 };
 const stockNote = it => it.stock === 'out' ? ' · <span class="oos">OUT OF STOCK</span>'
   : it.stock === 'closeout' ? ' · <span class="oos">CLOSEOUT</span>' : '';
@@ -533,7 +536,7 @@ async function loadCatalog(){
       const it = {
         v: data.v[a[0]], sku: String(a[1]), name: a[2], brand: a[3], cat: a[4], pack: a[5],
         lbs: a[6], price: a[7], perLb: a[8], bulk: !!a[9], img: !!a[10], shelf: a[11],
-        stock: a[12] || '', u: a[13] || '', brk: a[14] || null,
+        stock: a[12] || '', u: a[13] || '', brk: a[14] || null, shelfEst: !!a[15],
       };
       BY_KEY.set(key(it), it);
       return it;
@@ -1140,7 +1143,7 @@ function downscale(file){
       const img = new Image();
       img.onerror = () => reject(new Error('bad-image'));
       img.onload = () => {
-        const scale = Math.min(1, 1568 / Math.max(img.width, img.height));
+        const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
         const c = document.createElement('canvas');
         c.width = Math.max(1, Math.round(img.width * scale));
         c.height = Math.max(1, Math.round(img.height * scale));
@@ -1181,7 +1184,7 @@ async function identifyViaApi(key, file){
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5',
-      max_tokens: 400,
+      max_tokens: 300,
       messages: [{role: 'user', content: [
         {type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: b64}},
         {type: 'text', text: PHOTO_PROMPT},
@@ -1200,10 +1203,12 @@ async function identifyViaApi(key, file){
 }
 async function identifyPhoto(file){
   const cfg = photoCfg();
+  // key first: the direct call answers in a few seconds; the bridge boots a
+  // whole Claude Code session (15-30s) and stays as the free keyless fallback
+  if (cfg.key) return identifyViaApi(cfg.key, file);
   if (window.matchMedia('(min-width:1024px)').matches && await bridgeAlive(LOCAL_BRIDGE)){
     return identifyViaBridge(LOCAL_BRIDGE, file);
   }
-  if (cfg.key) return identifyViaApi(cfg.key, file);
   throw new Error('no-engine');
 }
 function bestFor(q){
