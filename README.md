@@ -51,12 +51,19 @@ pound; Frontier prices per each with case counts. Cross-vendor comparison on
 the ticket is a runtime closest-match by name — each row shows the matched
 item and its match %, so check pack sizes before ordering.
 
-## Photo matching
+## Photo search (PC only)
 
-`identifyPhoto()` in `index.html` is a stub that matches on the photo's
-filename and falls back to a demo item — it is the single seam where a real
-vision API call would plug in. Everything downstream (loading state, ticket,
-toast) already works.
+On the phone there is no photo button — search by name or item #. On the
+office PC, photo search runs through Claude: the app posts the photo to a
+local helper (`tools/photo-bridge.js`, port 8474) which asks Claude Code —
+signed in with the store's regular Claude subscription, no API key — to
+identify the product, then matches the answer against the catalog.
+
+The **Countryside Ledger** Start Menu / Desktop shortcut runs
+`tools/ledger-pc.vbs`, which starts the bridge silently and opens the app
+window, so it just works. If the app ever toasts "photo bridge isn't
+running", reopen the Ledger from that shortcut. One-time setup on a new PC:
+`npm install -g @anthropic-ai/claude-code`, run `claude` once and `/login`.
 
 ## Design source
 

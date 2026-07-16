@@ -110,6 +110,7 @@ body[data-view="ticket"] .toolbar{display:none}
 .tip{font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--chalk-dim);text-align:center;margin-top:11px}
 .lists-link{display:block;margin:8px auto 0;background:none;border:none;font-family:var(--serif);font-style:italic;font-size:12px;color:#89231F;text-decoration:underline;text-decoration-color:rgba(137,35,31,.4);cursor:pointer}
 .lists-link:hover{color:#5E1512}
+@media (max-width:1023px){.btn-photo{display:none}}
 
 /* ============================================================
    RESULTS
@@ -338,7 +339,7 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
         <button data-mode="prepacked" aria-pressed="false">PREPACKED</button>
       </div>
     </div>
-    <div class="tip">Tip — shoot the shelf tag, not the bag.</div>
+    <div class="tip">Tip — the item # on the shelf tag is the fastest search.</div>
     <button class="lists-link" id="btnDrawer">Price lists ›</button>
   </div>
 
@@ -398,7 +399,7 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
   <div class="box">
     <div class="wheat"></div>
     <div class="h">READING THE TAG</div>
-    <div class="s">Matching against 4 price lists…</div>
+    <div class="s">Claude is reading the photo…</div>
   </div>
 </div>
 
@@ -576,7 +577,7 @@ function renderResults(){
       <div class="state">
         <div class="wheat"></div>
         <div class="h">THE LEDGER IS OPEN</div>
-        <div class="s">${ITEMS.length.toLocaleString()} items across ${Object.keys(VENDORS).length} price lists.<br>Search an item or item # — or shoot the shelf tag.</div>
+        <div class="s">${ITEMS.length.toLocaleString()} items across ${Object.keys(VENDORS).length} price lists.<br>Search an item or item #${window.matchMedia('(min-width:1024px)').matches ? ' — or shoot the shelf tag' : ''}.</div>
       </div>`;
     return;
   }
@@ -926,14 +927,32 @@ $('#btnDrawer').addEventListener('click', openDrawer);
    Matches the filename against the real catalog; the real
    matcher would POST the image to a vision endpoint here.
    ============================================================ */
-function identifyPhoto(file){
-  return new Promise(resolve => {
-    setTimeout(() => {
-      const q = (file.name || '').toLowerCase().replace(/\.(jpe?g|png|webp|gif|heic)$/i, '').replace(/[-_.]/g, ' ');
-      const hits = searchItems(q).sort((a, b) => b.score - a.score || (b.it.img ? 1 : 0) - (a.it.img ? 1 : 0));
-      resolve(hits.length ? {it: hits[0].it, conf: hits[0].conf} : null);
-    }, 900);
-  });
+const BRIDGE = 'http://127.0.0.1:8474';
+async function identifyPhoto(file){
+  const res = await fetch(BRIDGE + '/identify', { method: 'POST', headers: {'Content-Type': file.type}, body: file });
+  const j = await res.json().catch(() => ({error: 'bad-json'}));
+  if (!res.ok || j.error) throw new Error(j.error || 'bridge');
+  return j; // {sku, terms} from Claude via the local photo bridge
+}
+function findByAnswer(ans){
+  if (ans.sku){
+    for (const v of Object.keys(VENDORS)){
+      const hit = BY_KEY.get(v + ':' + ans.sku);
+      if (hit) return {it: hit, conf: 97};
+    }
+  }
+  if (ans.terms){
+    const terms = ans.terms.split(/\s+/).filter(Boolean);
+    while (terms.length){
+      const hits = searchItems(terms.join(' '));
+      if (hits.length){
+        hits.sort((a, b) => b.score - a.score || (b.it.img ? 1 : 0) - (a.it.img ? 1 : 0));
+        return {it: hits[0].it, conf: hits[0].conf, terms: terms.join(' ')};
+      }
+      terms.pop();
+    }
+  }
+  return null;
 }
 async function handlePhoto(file){
   if (!file) return;
@@ -943,12 +962,13 @@ async function handlePhoto(file){
   }
   $('#loadingOverlay').classList.add('show');
   try{
-    const m = await identifyPhoto(file);
+    const ans = await identifyPhoto(file);
+    const m = findByAnswer(ans);
     if (!m){
-      toast('COULDN’T MATCH THAT PHOTO — TRY THE SEARCH BOX', true);
+      toast('NOTHING IN THE LEDGER LOOKS LIKE THAT — TRY THE SEARCH BOX', true);
       return;
     }
-    state.query = nameTokens(m.it.name).slice(0, 2).join(' ') || m.it.name;
+    state.query = m.terms || nameTokens(m.it.name).slice(0, 2).join(' ') || m.it.name;
     $('#q').value = state.query;
     $('#searchBox').classList.add('has-q');
     state.expanded = false;
@@ -956,7 +976,9 @@ async function handlePhoto(file){
     openTicket(key(m.it), 'photo');
     toast(`MATCHED ${m.it.name.toUpperCase().slice(0, 40)} — ${m.conf}% SURE`);
   } catch(err){
-    toast('COULDN’T READ THAT PHOTO', true);
+    if (String(err.message) === 'auth') toast('CLAUDE ISN’T SIGNED IN ON THIS PC — RUN THE LOGIN ONCE', true);
+    else if (err instanceof TypeError) toast('PHOTO BRIDGE ISN’T RUNNING — OPEN THE LEDGER FROM ITS SHORTCUT', true);
+    else toast('COULDN’T READ THAT PHOTO — TRY AGAIN', true);
   } finally {
     $('#loadingOverlay').classList.remove('show');
   }
@@ -968,6 +990,7 @@ $('#fileInput').addEventListener('change', e => { handlePhoto(e.target.files[0])
 let dragDepth = 0;
 window.addEventListener('dragenter', e => {
   e.preventDefault();
+  if (!window.matchMedia('(min-width:1024px)').matches) return;
   if (e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')){
     dragDepth++;
     $('#dropOverlay').classList.add('show');
