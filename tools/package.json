@@ -1,0 +1,12 @@
+{
+  "name": "countryside-ledger-tools",
+  "private": true,
+  "description": "Price-sheet importer and thumbnail generator for the Countryside Ledger",
+  "scripts": {
+    "import": "node build.js && node thumbs.js"
+  },
+  "dependencies": {
+    "sharp": "^0.34.0",
+    "xlsx": "^0.18.5"
+  }
+}

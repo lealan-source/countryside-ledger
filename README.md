@@ -21,23 +21,35 @@ condensed black caps, and red ink marking the numbers that matter.
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | The entire app — markup, styles, data, and logic in one file |
-| `sw.js` | Service worker: precaches the app shell so it opens offline |
+| `index.html` | The app — markup, styles, and logic |
+| `data/catalog.json` | The catalog: 20k+ items built from the four price sheets |
+| `images/` | Product thumbnails (320px webp), named `images/<vendor>/<sku>.webp` |
+| `sw.js` | Service worker: precaches the app shell + catalog so it opens offline |
 | `manifest.webmanifest` | Install metadata (name, colors, icons) |
-| `icons/` | App icons generated from the brand wheat mark |
+| `icons/` | App icons generated from the brand favicon |
 | `brand-assets/` | Source brand art (wheat divider, favicon, wheat vector) |
+| `tools/` | Importer: price sheets + product images → catalog + thumbnails |
+| `Price Sheets/`, `Product Images/` | Source data — stays on this PC, never published |
 
 ## Updating prices
 
-All data lives in the `CATALOG` array near the top of the `<script>` in
-`index.html` — one entry per product, one offer per vendor with `sku`, net
-weight `lb`, case `price`, `pack` label, `bulk` flag, and `stock`
-(`in` / `low` / `out`). Per-pound math, best-price stamps, and confidence
-badges all derive from it.
+1. Drop the new vendor sheet(s) into `Price Sheets/` (same filenames:
+   `Dutch Valley.xls`, `Frontier.xlsx`, `Gateway.xlsx`, `Walnut Creek.xlsx`).
+   New product photos go under `Product Images/<Vendor>/` — the importer
+   matches them by the SKU at the start of each filename.
+2. In `tools/`: `npm install` (first time only), then `npm run import`.
+   This rebuilds `data/catalog.json` and adds any missing thumbnails.
+3. Bump `VERSION` in `sw.js` (e.g. `v2` → `v3`) so installed apps pick up
+   the change, then commit and push — GitHub Pages redeploys automatically.
 
-After any edit, bump `VERSION` in `sw.js` (e.g. `v1` → `v2`) so installed
-apps pick up the change, then commit and push — GitHub Pages redeploys
-automatically.
+Or just ask Claude to do it.
+
+Vendor sheet quirks the importer handles: Dutch Valley's price book gives
+per-lb prices directly on bulk rows; Gateway's `LB/Qty` column is pounds for
+bulk foods but unit-counts for supplies; Walnut Creek's list price is per
+pound; Frontier prices per each with case counts. Cross-vendor comparison on
+the ticket is a runtime closest-match by name — each row shows the matched
+item and its match %, so check pack sizes before ordering.
 
 ## Photo matching
 
