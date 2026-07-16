@@ -123,6 +123,8 @@ main{flex:1;display:block}
 .row{display:flex;gap:12px;align-items:center;width:100%;padding:var(--row-pad) 2px;border-bottom:1px solid var(--line);background:none;border-top:none;border-left:none;border-right:none;text-align:left;cursor:pointer}
 .row:hover .r-name{text-decoration:underline;text-decoration-color:var(--line)}
 .thumb{width:44px;height:44px;flex:none;background:var(--board-deep) repeating-linear-gradient(-45deg,rgba(27,23,16,.05) 0 2px,transparent 2px 6px);border:1px solid var(--line)}
+.thumb{overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block;background:#fff}
 body.no-thumbs .thumb{display:none}
 .r-main{flex:1;min-width:0}
 .r-name{font-size:14.5px;font-weight:600;color:var(--ink);line-height:1.25}
@@ -160,6 +162,8 @@ body[data-view="ticket"] .results-page{display:none}
 .t-sub{font-size:12px;color:var(--ink-soft);margin-top:3px}
 .t-shelf{font-family:var(--serif);font-style:italic;font-size:13px;color:var(--ink-soft);margin-top:6px}
 .t-head .wheat{width:110px;margin:10px auto 2px}
+.t-img{width:84px;height:84px;object-fit:contain;background:#fff;border:1px solid var(--line);display:block;margin:10px auto 0;padding:4px;box-sizing:border-box}
+.match-name{display:block;font-size:10.5px;line-height:1.3;max-height:2.6em;overflow:hidden}
 .t-row{display:flex;justify-content:space-between;align-items:flex-end;padding:12px 2px;border-bottom:1px solid var(--line)}
 .t-row .sub{font-size:11px;color:var(--ink-soft);margin-top:5px}
 .t-price{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
@@ -223,6 +227,7 @@ body[data-view="ticket"] .results-page{display:none}
 .m-x{background:none;border:none;font-size:20px;cursor:pointer;line-height:1;padding:2px 6px;margin:-2px -6px 0 0}
 .m-img{margin:14px 16px 0;height:150px;background:var(--board-deep) repeating-linear-gradient(-45deg,rgba(27,23,16,.05) 0 2px,transparent 2px 6px);border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
 .m-img .wheat{width:120px;opacity:.5}
+.m-img img{width:100%;height:100%;object-fit:contain;display:block;background:#fff}
 .m-grid{margin:6px 16px 0}
 .m-grid .g-row{display:flex;justify-content:space-between;gap:14px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:12.5px}
 .m-grid .g-row .k{font-family:var(--display);font-size:10.5px;letter-spacing:.14em;color:var(--ink-soft);padding-top:2px}
@@ -368,7 +373,7 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
       <button data-density="comfortable">COMFORTABLE</button>
       <button data-density="compact">COMPACT</button>
     </div>
-    <div class="d-note">Update replaces a vendor's list from a CSV export — order and hidden vendors are remembered on this device.</div>
+    <div class="d-note">To update prices, drop the new sheet in the Price Sheets folder and re-import — order and hidden vendors are remembered on this device.</div>
   </div>
 </div>
 
@@ -400,123 +405,23 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
-<input type="file" id="csvInput" accept=".csv,.tsv,.txt,.xlsx" hidden>
 
 <script>
 'use strict';
 /* ============================================================
-   DATA — vendors & catalog
-   Offers: v vendor · sku · lb net weight · price case price ·
-   pack label · bulk flag · stock in|low|out
-   Replace CATALOG with real price-list data; everything else
-   renders from it.
+   DATA — vendors + catalog loaded from data/catalog.json
+   (built from the four price sheets in "Price Sheets/" —
+   re-run the importer after replacing a sheet)
    ============================================================ */
 const VENDORS = {
-  dv:{name:'DUTCH VALLEY', label:'Dutch Valley', color:'var(--dv)', url:'https://www.dutchvalleyfoods.com', updated:'Jul 14'},
-  gw:{name:'GATEWAY',      label:'Gateway',      color:'var(--gw)', url:'https://www.gatewayfoodproducts.com', updated:'Jul 14'},
-  wc:{name:'WALNUT CREEK', label:'Walnut Creek', color:'var(--wc)', url:'https://www.walnutcreekfoods.com', updated:'Jul 12'},
-  fr:{name:'FRONTIER',     label:'Frontier',     color:'var(--fr)', url:'https://www.frontiercoop.com', updated:'Jul 10'},
+  dv:{name:'DUTCH VALLEY', label:'Dutch Valley', color:'var(--dv)', updated:'Jul 13'},
+  gw:{name:'GATEWAY',      label:'Gateway',      color:'var(--gw)', updated:'Jul 6'},
+  wc:{name:'WALNUT CREEK', label:'Walnut Creek', color:'var(--wc)', updated:'Jul 16'},
+  fr:{name:'FRONTIER',     label:'Frontier',     color:'var(--fr)', updated:'Jul 16'},
 };
-const PRICES_REFRESHED = 'Jul 14';
-
-const CATALOG = [
-  {id:'oats-rolled', name:'Rolled Oats, Old Fashioned', variant:'Whole grain, thick', shelf:'Keeps 12 months — cool & dry', kw:'oats oatmeal rolled grain breakfast', offers:[
-    {v:'dv', sku:'2214', lb:50, price:31.00, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-102', lb:50, price:32.50, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-3301', lb:50, price:29.75, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'low'},
-    {v:'fr', sku:'F-771', lb:25, price:17.50, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'oats-quick', name:'Quick Oats', variant:'1-minute cut', shelf:'Keeps 12 months — cool & dry', kw:'oats oatmeal quick instant breakfast', offers:[
-    {v:'dv', sku:'2216', lb:25, price:17.00, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-104', lb:25, price:17.75, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-3305', lb:25, price:16.25, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'oats-steel', name:'Steel Cut Oats', variant:'Irish style', shelf:'Keeps 12 months — cool & dry', kw:'oats steel cut irish groats breakfast', offers:[
-    {v:'dv', sku:'2290', lb:20, price:22.40, pack:'4/5 lb', bulk:false, stock:'out'},
-    {v:'gw', sku:'G-110', lb:25, price:26.50, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'fr', sku:'F-780', lb:25, price:27.75, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'low'}]},
-  {id:'oats-groats', name:'Oat Groats, Whole', variant:'Hulled whole kernel', shelf:'Keeps 12 months — cool & dry', kw:'oats groats whole grain', offers:[
-    {v:'gw', sku:'G-118', lb:25, price:19.75, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'dv', sku:'2295', lb:25, price:21.00, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'oat-bran', name:'Oat Bran', variant:'Fine milled', shelf:'Keeps 9 months — cool & dry', kw:'oats bran fiber baking', offers:[
-    {v:'gw', sku:'G-204', lb:25, price:21.00, pack:'25 lb sack', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-3310', lb:25, price:20.25, pack:'25 lb sack', bulk:true, stock:'in'}]},
-  {id:'sunflower-rs', name:'Sunflower Kernels', variant:'Roasted & salted', shelf:'Keeps 9–12 months — cool & dry', kw:'sunflower kernels seeds roasted salted snack', offers:[
-    {v:'dv', sku:'4271', lb:25, price:31.00, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-455', lb:25, price:34.00, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-8102', lb:25, price:21.75, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'fr', sku:'F-2210', lb:25, price:38.00, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'low'}]},
-  {id:'sunflower-raw', name:'Sunflower Kernels, Raw', variant:'Unsalted', shelf:'Keeps 6–9 months — cool & dry', kw:'sunflower kernels seeds raw baking', offers:[
-    {v:'dv', sku:'4265', lb:25, price:28.50, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-8098', lb:25, price:24.25, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'flour-bread', name:'Bread Flour, High Gluten', variant:'Unbleached', shelf:'Keeps 8 months — cool & dry', kw:'flour bread high gluten baking wheat', offers:[
-    {v:'dv', sku:'1102', lb:50, price:24.50, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-011', lb:50, price:23.75, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-1050', lb:50, price:25.25, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'}]},
-  {id:'flour-ap', name:'All-Purpose Flour', variant:'Unbleached', shelf:'Keeps 8 months — cool & dry', kw:'flour all purpose baking wheat', offers:[
-    {v:'dv', sku:'1100', lb:50, price:21.00, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-010', lb:50, price:20.50, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'fr', sku:'F-118', lb:25, price:12.75, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'flour-ww', name:'Whole Wheat Flour', variant:'Stone ground', shelf:'Keeps 4 months — cool & dry', kw:'flour whole wheat stone ground baking', offers:[
-    {v:'dv', sku:'1130', lb:50, price:23.00, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'low'},
-    {v:'wc', sku:'W-1062', lb:50, price:22.25, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'}]},
-  {id:'sugar-cane', name:'Cane Sugar, Granulated', variant:'Extra fine', shelf:'Indefinite — keep dry', kw:'sugar cane granulated white baking', offers:[
-    {v:'dv', sku:'1310', lb:50, price:33.50, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-050', lb:50, price:32.00, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-1201', lb:50, price:34.25, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'}]},
-  {id:'sugar-brown', name:'Brown Sugar, Light', variant:'Golden', shelf:'Keeps 18 months — airtight', kw:'sugar brown light golden baking', offers:[
-    {v:'dv', sku:'1315', lb:50, price:36.00, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-052', lb:25, price:19.25, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'sugar-powder', name:'Powdered Sugar 6/2 lb', variant:'10-X confectioners', shelf:'Keeps 18 months — keep dry', kw:'sugar powdered confectioners icing prepacked', offers:[
-    {v:'dv', sku:'1320', lb:12, price:13.80, pack:'6/2 lb case', bulk:false, stock:'in'},
-    {v:'wc', sku:'W-1230', lb:12, price:12.90, pack:'6/2 lb case', bulk:false, stock:'in'}]},
-  {id:'salt-sea', name:'Sea Salt, Fine', variant:'Solar evaporated', shelf:'Indefinite — keep dry', kw:'salt sea fine seasoning', offers:[
-    {v:'fr', sku:'F-402', lb:25, price:23.50, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'dv', sku:'1410', lb:25, price:21.75, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'pepper-black', name:'Black Peppercorns, Whole', variant:'Tellicherry', shelf:'Keeps 24 months — airtight', kw:'pepper peppercorn black spice tellicherry', offers:[
-    {v:'fr', sku:'F-517', lb:5, price:32.50, pack:'5 lb bag', tag:'BULK 5#', bulk:true, stock:'in'},
-    {v:'dv', sku:'1522', lb:5, price:34.25, pack:'5 lb bag', tag:'BULK 5#', bulk:true, stock:'low'}]},
-  {id:'cinnamon', name:'Cinnamon, Ground', variant:'Korintje 2%', shelf:'Keeps 18 months — airtight', kw:'cinnamon ground korintje spice baking', offers:[
-    {v:'fr', sku:'F-509', lb:5, price:18.75, pack:'5 lb bag', tag:'BULK 5#', bulk:true, stock:'in'},
-    {v:'dv', sku:'1509', lb:5, price:19.50, pack:'5 lb bag', tag:'BULK 5#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-509', lb:1, price:5.10, pack:'6/1 lb case', bulk:false, stock:'in'}]},
-  {id:'raisins', name:'Raisins, Thompson Select', variant:'Sun dried', shelf:'Keeps 12 months — cool & dry', kw:'raisins thompson dried fruit baking', offers:[
-    {v:'dv', sku:'3110', lb:30, price:42.00, pack:'30 lb case', tag:'BULK 30#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-310', lb:30, price:44.50, pack:'30 lb case', tag:'BULK 30#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-6115', lb:30, price:40.25, pack:'30 lb case', tag:'BULK 30#', bulk:true, stock:'in'}]},
-  {id:'cranberries', name:'Cranberries, Sweetened Dried', variant:'Whole', shelf:'Keeps 12 months — cool & dry', kw:'cranberries craisins dried fruit sweetened', offers:[
-    {v:'dv', sku:'3140', lb:25, price:47.50, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-6140', lb:25, price:44.75, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'low'}]},
-  {id:'apricots', name:'Apricots, Dried Turkish', variant:'Size 4, sulfured', shelf:'Keeps 12 months — cool & dry', kw:'apricots dried turkish fruit', offers:[
-    {v:'fr', sku:'F-3312', lb:28, price:78.50, pack:'28 lb case', tag:'BULK 28#', bulk:true, stock:'in'},
-    {v:'dv', sku:'3312', lb:28, price:81.75, pack:'28 lb case', tag:'BULK 28#', bulk:true, stock:'in'}]},
-  {id:'almonds-raw', name:'Almonds, Raw Whole', variant:'Nonpareil 23/25', shelf:'Keeps 12 months — cool & dry', kw:'almonds raw whole nuts nonpareil', offers:[
-    {v:'dv', sku:'4110', lb:25, price:92.50, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-411', lb:25, price:95.00, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-8010', lb:25, price:88.75, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'walnuts', name:'Walnuts, Halves & Pieces', variant:'Light amber', shelf:'Keeps 9 months — refrigerate', kw:'walnuts halves pieces nuts baking', offers:[
-    {v:'dv', sku:'4130', lb:25, price:97.25, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-8030', lb:25, price:93.50, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'fr', sku:'F-4130', lb:25, price:101.00, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'out'}]},
-  {id:'pecans', name:'Pecan Pieces, Medium', variant:'Fancy', shelf:'Keeps 9 months — refrigerate', kw:'pecans pieces nuts baking', offers:[
-    {v:'dv', sku:'4150', lb:30, price:168.00, pack:'30 lb case', tag:'BULK 30#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-415', lb:30, price:172.50, pack:'30 lb case', tag:'BULK 30#', bulk:true, stock:'low'}]},
-  {id:'choc-chips', name:'Chocolate Chips, Semi-Sweet', variant:'4M drops', shelf:'Keeps 12 months — under 70°F', kw:'chocolate chips semi sweet baking drops candy', offers:[
-    {v:'dv', sku:'5210', lb:25, price:61.25, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'gw', sku:'G-521', lb:25, price:63.00, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-9210', lb:25, price:58.50, pack:'25 lb case', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'peanut-butter', name:'Peanut Butter Stock', variant:'Creamy, no-stir', shelf:'Keeps 9 months — cool & dry', kw:'peanut butter creamy spread prepacked', offers:[
-    {v:'dv', sku:'5410', lb:9, price:21.60, pack:'6/1.5 lb case', bulk:false, stock:'in'},
-    {v:'gw', sku:'G-541', lb:35, price:64.75, pack:'35 lb pail', tag:'BULK 35#', bulk:true, stock:'in'}]},
-  {id:'popcorn', name:'Popcorn, Yellow Butterfly', variant:'Large kernel', shelf:'Keeps 12 months — airtight', kw:'popcorn yellow butterfly kernels snack', offers:[
-    {v:'dv', sku:'2410', lb:50, price:39.50, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-2410', lb:50, price:36.75, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'}]},
-  {id:'navy-beans', name:'Navy Beans', variant:'No. 1 grade', shelf:'Keeps 24 months — cool & dry', kw:'beans navy white dried soup', offers:[
-    {v:'gw', sku:'G-230', lb:50, price:47.50, pack:'50 lb bag', tag:'BULK 50#', bulk:true, stock:'in'},
-    {v:'dv', sku:'2230', lb:25, price:26.25, pack:'25 lb bag', tag:'BULK 25#', bulk:true, stock:'in'}]},
-  {id:'elbow-mac', name:'Elbow Macaroni', variant:'Durum semolina', shelf:'Keeps 24 months — cool & dry', kw:'macaroni elbow pasta noodles', offers:[
-    {v:'gw', sku:'G-260', lb:20, price:19.80, pack:'20 lb case', tag:'BULK 20#', bulk:true, stock:'in'},
-    {v:'dv', sku:'2260', lb:20, price:21.40, pack:'20 lb case', tag:'BULK 20#', bulk:true, stock:'in'},
-    {v:'wc', sku:'W-2260', lb:10, price:12.10, pack:'2/5 lb case', bulk:false, stock:'in'}]},
-];
+let PRICES_REFRESHED = 'Jul 16';
+let ITEMS = [];               // {v,sku,name,brand,cat,pack,lbs,price,perLb,bulk,img,shelf,hay}
+const BY_KEY = new Map();     // "dv:153185" → item
 
 /* ============================================================
    STATE
@@ -525,7 +430,7 @@ const LS_KEY = 'countrysideLedger.v1';
 const state = {
   query:'', mode:'bulk',
   expanded:false,
-  ticket:null,                // {productId, no, date, via}
+  ticket:null,                // {k, no, date}
   vendorOrder:['dv','gw','wc','fr'],
   hidden:[],
   thumbs:'show', density:'comfortable',
@@ -550,10 +455,17 @@ function persist(){
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = n => '$' + n.toFixed(2);
-const perLb = o => o.price / o.lb;
+const fmtLbs = n => (Math.round(n * 10) / 10).toString().replace(/\.0$/, '');
 const hash = s => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 const todayLabel = () => new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}).toUpperCase();
-const product = id => CATALOG.find(p => p.id === id);
+const key = it => it.v + ':' + it.sku;
+const imgSrc = it => it.img ? `images/${it.v}/${encodeURIComponent(it.sku)}.webp` : null;
+const thumbHTML = it => `<span class="thumb">${it.img ? `<img loading="lazy" decoding="async" src="${imgSrc(it)}" alt="" onerror="this.remove()">` : ''}</span>`;
+const shelfLine = it => {
+  if (!it.shelf) return '';
+  const mo = Math.round(it.shelf / 30.4);
+  return mo >= 24 ? `Keeps ~${Math.round(mo / 12)} years` : mo >= 2 ? `Keeps ~${mo} months` : `Keeps ~${it.shelf} days`;
+};
 
 let toastTimer;
 function toast(msg, err){
@@ -566,46 +478,84 @@ function toast(msg, err){
 }
 
 /* ============================================================
-   SEARCH — score products against a query
+   CATALOG LOAD
    ============================================================ */
-function matchScore(p, q){
+async function loadCatalog(){
+  $('#results').innerHTML = `
+    <div class="state">
+      <div class="wheat"></div>
+      <div class="h">OPENING THE LEDGER</div>
+      <div class="s">Loading the four price lists…</div>
+    </div>`;
+  try{
+    const res = await fetch('data/catalog.json');
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    ITEMS = data.items.map(a => {
+      const it = {
+        v: data.v[a[0]], sku: String(a[1]), name: a[2], brand: a[3], cat: a[4], pack: a[5],
+        lbs: a[6], price: a[7], perLb: a[8], bulk: !!a[9], img: !!a[10], shelf: a[11],
+      };
+      it.hay = (it.name + ' ' + it.brand + ' ' + it.cat + ' ' + it.sku).toLowerCase();
+      BY_KEY.set(key(it), it);
+      return it;
+    });
+    if (data.generated){
+      PRICES_REFRESHED = new Date(data.generated + 'T12:00:00')
+        .toLocaleDateString('en-US', {month:'short', day:'numeric'});
+    }
+    renderResults();
+  }catch(e){
+    $('#results').innerHTML = `
+      <div class="state">
+        <div class="wheat"></div>
+        <div class="h">COULDN'T OPEN THE PRICE LISTS</div>
+        <div class="s">Check the connection and pull down to retry —<br>once loaded, the ledger works offline.</div>
+      </div>`;
+  }
+}
+
+/* ============================================================
+   SEARCH — score all items against a query
+   ============================================================ */
+function searchItems(q){
   q = q.trim().toLowerCase();
-  if (!q) return 0;
   const bare = q.replace(/^#/, '');
-  if (p.offers.some(o => o.sku.toLowerCase() === bare)) return 99;
-  const name = p.name.toLowerCase();
-  const hay = (p.name + ' ' + p.variant + ' ' + p.kw).toLowerCase();
-  if (name === q) return 98;
-  if (name.startsWith(q)) return 93;
   const tokens = q.split(/\s+/).filter(Boolean);
-  const hits = tokens.filter(t => hay.includes(t)).length;
-  if (hits === tokens.length) return 88;
-  if (hits > 0) return 74 + Math.round(8 * hits / tokens.length);
-  return 0;
+  const out = [];
+  if (!tokens.length) return out;
+  for (const it of ITEMS){
+    let score = 0;
+    if (it.sku.toLowerCase() === bare) score = 99;
+    else {
+      let all = true;
+      for (const t of tokens){ if (!it.hay.includes(t)){ all = false; break; } }
+      if (!all) continue;
+      const nl = it.name.toLowerCase();
+      if (nl === q) score = 98;
+      else if (nl.startsWith(q)) score = 93;
+      else {
+        let inName = 0;
+        for (const t of tokens) if (nl.includes(t)) inName++;
+        score = 76 + Math.round(8 * inName / tokens.length) + Math.max(0, 8 - Math.floor(nl.length / 14));
+      }
+    }
+    out.push({it, score, conf: Math.max(60, Math.min(99, score - (hash(it.sku) % 6)))});
+  }
+  return out;
 }
-function confidence(score, offer){
-  return Math.max(60, Math.min(99, score - (hash(offer.sku) % 6)));
-}
-// Grouped by vendor, honoring order/hidden and the prioritize mode
-function searchResults(q){
+function searchGroups(q){
+  const hits = searchItems(q);
   const groups = [];
   for (const v of state.vendorOrder){
     if (state.hidden.includes(v)) continue;
-    const rows = [];
-    for (const p of CATALOG){
-      const score = matchScore(p, q);
-      if (score <= 0) continue;
-      for (const o of p.offers){
-        if (o.v !== v) continue;
-        rows.push({p, o, score, conf: confidence(score, o)});
-      }
-    }
+    const rows = hits.filter(r => r.it.v === v);
     rows.sort((a, b) => {
       if (state.mode !== 'all'){
-        const pref = x => (state.mode === 'bulk' ? !x.o.bulk : x.o.bulk) ? 1 : 0;
+        const pref = x => (state.mode === 'bulk' ? !x.it.bulk : x.it.bulk) ? 1 : 0;
         if (pref(a) !== pref(b)) return pref(a) - pref(b);
       }
-      return b.score - a.score || perLb(a.o) - perLb(b.o);
+      return b.score - a.score || (a.it.perLb || 1e9) - (b.it.perLb || 1e9);
     });
     if (rows.length) groups.push({v, rows});
   }
@@ -616,19 +566,21 @@ function searchResults(q){
    RENDER — results
    ============================================================ */
 const COLLAPSED_PER_VENDOR = 3;
+const EXPANDED_PER_VENDOR = 40;
 function renderResults(){
   const el = $('#results');
   const q = state.query;
+  if (!ITEMS.length) return; // still loading / failed — state screen already shown
   if (!q.trim()){
     el.innerHTML = `
       <div class="state">
         <div class="wheat"></div>
         <div class="h">THE LEDGER IS OPEN</div>
-        <div class="s">Search an item or item # — or shoot the shelf tag —<br>and the four price lists line up here.</div>
+        <div class="s">${ITEMS.length.toLocaleString()} items across ${Object.keys(VENDORS).length} price lists.<br>Search an item or item # — or shoot the shelf tag.</div>
       </div>`;
     return;
   }
-  const groups = searchResults(q);
+  const groups = searchGroups(q);
   if (!groups.length){
     el.innerHTML = `
       <div class="state">
@@ -639,22 +591,25 @@ function renderResults(){
     return;
   }
   let html = '';
-  let hiddenCount = 0;
+  let hiddenCount = 0, capped = false;
   for (const g of groups){
     const vend = VENDORS[g.v];
-    const shown = state.expanded ? g.rows : g.rows.slice(0, COLLAPSED_PER_VENDOR);
-    hiddenCount += g.rows.length - shown.length;
+    const limit = state.expanded ? EXPANDED_PER_VENDOR : COLLAPSED_PER_VENDOR;
+    const shown = g.rows.slice(0, limit);
+    hiddenCount += Math.max(0, g.rows.length - (state.expanded ? g.rows.length : COLLAPSED_PER_VENDOR));
+    if (state.expanded && g.rows.length > EXPANDED_PER_VENDOR) capped = true;
     html += `
       <div class="v-head">
         <span class="v-tag" style="background:${vend.color}">${vend.name}</span>
         <span class="r"></span>
-        <span class="v-count">${g.rows.length} item${g.rows.length === 1 ? '' : 's'}</span>
+        <span class="v-count">${g.rows.length.toLocaleString()} item${g.rows.length === 1 ? '' : 's'}</span>
       </div>`;
     for (const r of shown) html += rowHTML(r);
   }
-  if (hiddenCount > 0){
-    html += `<button class="btn-more" id="btnMore">SHOW MORE — ${hiddenCount} REMAINING</button>`;
+  if (!state.expanded && hiddenCount > 0){
+    html += `<button class="btn-more" id="btnMore">SHOW MORE — ${hiddenCount.toLocaleString()} REMAINING</button>`;
   } else if (state.expanded){
+    if (capped) html += `<div class="t-note">Showing the top ${EXPANDED_PER_VENDOR} per vendor — narrow the search to see the rest.</div>`;
     html += `<button class="btn-more" id="btnMore">SHOW FEWER</button>`;
   }
   el.innerHTML = html;
@@ -662,40 +617,71 @@ function renderResults(){
   if (more) more.addEventListener('click', () => { state.expanded = !state.expanded; renderResults(); });
 }
 function rowHTML(r){
-  const {p, o} = r;
-  const oos = o.stock === 'out';
-  const midBit = oos
-    ? `${esc(o.pack)} · <span class="oos">OUT OF STOCK</span>`
-    : o.tag
-      ? `${VENDORS[o.v].label.replace(/ /g,'&nbsp;')} · <span class="pack-chip">${esc(o.tag)}</span>`
-      : `${VENDORS[o.v].label.replace(/ /g,'&nbsp;')} · ${esc(o.pack)}`;
+  const it = r.it;
+  const mid = esc(it.brand || it.cat || VENDORS[it.v].label);
+  const chip = it.pack
+    ? (it.bulk
+        ? `<span class="pack-chip">${esc(('BULK ' + it.pack).toUpperCase()).slice(0, 24)}</span>`
+        : esc(it.pack))
+    : '';
+  const price = it.perLb
+    ? `<span class="lb" style="display:block">${money(it.perLb)}<small>/lb</small></span>
+       <span class="case" style="display:block">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</span>`
+    : `<span class="lb" style="display:block">${money(it.price)}</span>
+       <span class="case" style="display:block">${esc(it.pack || 'each')}</span>`;
   return `
-    <button class="row" data-pid="${p.id}">
-      <span class="thumb"></span>
+    <button class="row" data-k="${esc(key(it))}">
+      ${thumbHTML(it)}
       <span class="r-main">
-        <span class="r-name" style="display:block">${esc(p.name)}</span>
-        <span class="r-meta" style="display:block">#${esc(o.sku)} · ${midBit}</span>
+        <span class="r-name" style="display:block">${esc(it.name)}</span>
+        <span class="r-meta" style="display:block">#${esc(it.sku)} · ${mid}${chip ? ' · ' + chip : ''}</span>
       </span>
-      <span class="r-price">
-        <span class="lb" style="display:block">${money(perLb(o))}<small>/lb</small></span>
-        <span class="case" style="display:block">${money(o.price)} · ${o.lb} lb</span>
-      </span>
+      <span class="r-price">${price}</span>
       <span class="r-conf">
         <span class="pct" style="display:inline-block">${r.conf}%</span>
-        <span class="info" data-info="${p.id}" data-v="${o.v}" role="button" aria-label="Item details" style="display:block">ⓘ</span>
+        <span class="info" data-info="${esc(key(it))}" role="button" aria-label="Item details" style="display:block">ⓘ</span>
       </span>
     </button>`;
 }
 $('#results').addEventListener('click', e => {
   const info = e.target.closest('[data-info]');
-  if (info){
-    e.stopPropagation();
-    openModal(info.dataset.info, info.dataset.v);
-    return;
-  }
-  const row = e.target.closest('.row[data-pid]');
-  if (row) openTicket(row.dataset.pid, 'row');
+  if (info){ e.stopPropagation(); openModal(info.dataset.info); return; }
+  const row = e.target.closest('.row[data-k]');
+  if (row) openTicket(row.dataset.k, 'row');
 });
+
+/* ============================================================
+   CROSS-VENDOR MATCHING — closest item from each other vendor
+   ============================================================ */
+const STOP = new Set(['of','the','and','a','an','with','in','for','to','no','&','-','–']);
+function nameTokens(name){
+  return [...new Set(
+    name.toLowerCase()
+      .replace(/\d+(\.\d+)?\s*[\/x-]?\s*\d*(\.\d+)?\s*(lbs?|oz|ct|#|gal|fl)\b\.?/g, ' ')
+      .replace(/[^a-z\s]/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length > 2 && !STOP.has(t))
+  )];
+}
+function closestMatch(it, v){
+  const toks = nameTokens(it.name);
+  if (!toks.length) return null;
+  let best = null, bestS = 0;
+  for (const c of ITEMS){
+    if (c.v !== v) continue;
+    let hit = 0;
+    for (const t of toks) if (c.hay.includes(t)) hit++;
+    if (!hit) continue;
+    let s = hit / toks.length;
+    if (c.perLb) s += 0.08;
+    if (it.lbs && c.lbs){
+      const ratio = Math.max(it.lbs, c.lbs) / Math.min(it.lbs, c.lbs);
+      if (ratio <= 2) s += 0.06;
+    }
+    if (s > bestS){ bestS = s; best = c; }
+  }
+  return bestS >= 0.62 ? {it: best, sim: Math.min(97, Math.round(bestS * 70) + 20)} : null;
+}
 
 /* ============================================================
    RENDER — comparison ticket
@@ -705,10 +691,11 @@ function newTicketNo(){
   persist();
   return String(state.ticketNo).padStart(4, '0');
 }
-function openTicket(pid, via){
+function openTicket(k, via){
+  if (!BY_KEY.has(k)) return;
   const prev = state.ticket;
-  const no = (prev && prev.productId === pid) ? prev.no : newTicketNo();
-  state.ticket = {productId: pid, no, date: todayLabel(), via: via || 'row'};
+  const no = (prev && prev.k === k) ? prev.no : newTicketNo();
+  state.ticket = {k, no, date: todayLabel(), via: via || 'row'};
   renderTicket();
   document.body.dataset.view = 'ticket';
   if (window.matchMedia('(min-width:1024px)').matches){
@@ -717,10 +704,20 @@ function openTicket(pid, via){
     window.scrollTo(0, 0);
   }
 }
+function ticketRows(picked){
+  const rows = [];
+  for (const v of state.vendorOrder){
+    if (state.hidden.includes(v)) continue;
+    if (v === picked.v){ rows.push({it: picked, picked: true}); continue; }
+    const m = closestMatch(picked, v);
+    if (m) rows.push({it: m.it, sim: m.sim});
+  }
+  return rows;
+}
 function renderTicket(){
   const el = $('#ticketPage');
   const t = state.ticket;
-  if (!t){
+  if (!t || !BY_KEY.has(t.k)){
     el.innerHTML = `
       <div>
         <div class="serr-t"></div>
@@ -734,75 +731,74 @@ function renderTicket(){
     $('#barNo').textContent = 'Nº ————';
     return;
   }
-  const p = product(t.productId);
-  const offers = state.vendorOrder
-    .map(v => p.offers.find(o => o.v === v))
-    .filter(Boolean);
-  const inStock = offers.filter(o => o.stock !== 'out');
-  const best = inStock.length ? inStock.reduce((a, b) => perLb(a) <= perLb(b) ? a : b) : null;
-  let rows = '';
-  for (const o of offers){
-    const vend = VENDORS[o.v];
-    const stockLine = o.stock === 'out'
-      ? `${esc(o.pack)} · <span class="oos">OUT OF STOCK</span>`
-      : `${esc(o.pack)} · ${o.stock === 'low' ? 'low stock' : 'in stock'}`;
-    const isBest = best && o === best;
-    const price = `
-      <div class="t-price">
-        <div class="lb">${money(perLb(o))}<small>/lb</small></div>
-        <div class="case">${money(o.price)} ${/case/i.test(o.pack) ? 'case' : ''}</div>
-      </div>`;
+  const picked = BY_KEY.get(t.k);
+  const rows = ticketRows(picked);
+  const priced = rows.filter(r => r.it.perLb);
+  const best = priced.length ? priced.reduce((a, b) => a.it.perLb <= b.it.perLb ? a : b) : null;
+  let rowsHTML = '';
+  for (const r of rows){
+    const it = r.it, vend = VENDORS[it.v];
+    const sub = r.picked
+      ? `${esc(it.pack || 'each')}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}`
+      : `<span class="match-name">${esc(it.name)}</span>#${esc(it.sku)} · ${esc(it.pack || 'each')} · match ${r.sim}%`;
+    const price = it.perLb
+      ? `<div class="lb">${money(it.perLb)}<small>/lb</small></div>
+         <div class="case">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</div>`
+      : `<div class="lb">${money(it.price)}</div><div class="case">${esc(it.pack || 'each')}</div>`;
     const left = `
-      <div>
+      <div style="min-width:0">
         <span class="v-tag" style="background:${vend.color};display:inline-block">${vend.name}</span>
-        <div class="sub">${stockLine}</div>
+        <div class="sub">${sub}</div>
       </div>`;
-    rows += isBest
-      ? `<div class="t-row best"><div class="inner">${left}${price}</div><div class="stamp">BEST/LB</div></div>`
-      : `<div class="t-row">${left}${price}</div>`;
+    const priceCol = `<div class="t-price">${price}</div>`;
+    rowsHTML += (best && r === best)
+      ? `<div class="t-row best"><div class="inner">${left}${priceCol}</div><div class="stamp">BEST/LB</div></div>`
+      : `<div class="t-row">${left}${priceCol}</div>`;
   }
-  const bestVend = best ? VENDORS[best.v] : null;
+  const shelf = shelfLine(picked);
   el.innerHTML = `
     <div>
       <div class="serr-t"></div>
       <div class="t-body">
         <div class="t-meta"><span>TICKET Nº ${t.no}</span><span>${t.date}</span></div>
         <div class="t-head">
-          <div class="t-name">${esc(p.name.toUpperCase())}</div>
-          <div class="t-sub">${esc(p.variant)} · item #${esc(p.offers[0].sku)}</div>
-          <div class="t-shelf">${esc(p.shelf)}</div>
+          <div class="t-name">${esc(picked.name.toUpperCase())}</div>
+          <div class="t-sub">${esc(picked.brand || picked.cat || VENDORS[picked.v].label)} · item #${esc(picked.sku)}</div>
+          ${shelf ? `<div class="t-shelf">${esc(shelf)}</div>` : ''}
+          ${picked.img ? `<img class="t-img" loading="lazy" src="${imgSrc(picked)}" alt="" onerror="this.remove()">` : ''}
           <div class="wheat"></div>
         </div>
-        ${rows}
+        ${rowsHTML}
         <div class="t-actions">
-          ${bestVend ? `<button class="btn-outline" id="btnVendor">${bestVend.name}&nbsp;↗</button>` : ''}
           <button class="btn-ink" id="btnCopy">COPY SUMMARY</button>
         </div>
         <div class="t-foot">COUNTRYSIDE MARKET&nbsp;·&nbsp;EST. 2008</div>
       </div>
       <div class="serr-b"></div>
     </div>
-    <div class="t-note">Compared ${offers.length} vendor${offers.length === 1 ? '' : 's'} — prices refreshed ${PRICES_REFRESHED}</div>`;
+    <div class="t-note">${rows.length > 1 ? `Compared ${rows.length} vendors — closest match by name, check pack sizes` : 'Only ' + VENDORS[picked.v].label + ' carries a close match'} · prices refreshed ${PRICES_REFRESHED}</div>`;
   $('#barNo').textContent = 'Nº ' + t.no;
-  if (bestVend) $('#btnVendor').addEventListener('click', () => window.open(bestVend.url, '_blank', 'noopener'));
   $('#btnCopy').addEventListener('click', copySummary);
 }
 function copySummary(){
   const t = state.ticket;
-  if (!t) return;
-  const p = product(t.productId);
-  const offers = state.vendorOrder.map(v => p.offers.find(o => o.v === v)).filter(Boolean);
-  const inStock = offers.filter(o => o.stock !== 'out');
-  const best = inStock.length ? inStock.reduce((a, b) => perLb(a) <= perLb(b) ? a : b) : null;
+  if (!t || !BY_KEY.has(t.k)) return;
+  const picked = BY_KEY.get(t.k);
+  const rows = ticketRows(picked);
+  const priced = rows.filter(r => r.it.perLb);
+  const best = priced.length ? priced.reduce((a, b) => a.it.perLb <= b.it.perLb ? a : b) : null;
   const lines = [
-    `${p.name.toUpperCase()} — ${p.variant} (#${p.offers[0].sku})`,
+    `${picked.name.toUpperCase()} (#${picked.sku})`,
     `Ticket Nº ${t.no} · ${t.date}`,
-    ...offers.map(o => {
-      const stock = o.stock === 'out' ? 'OUT OF STOCK' : o.stock === 'low' ? 'low stock' : 'in stock';
-      const flag = best && o === best ? '  <-- BEST/LB' : '';
-      return `${VENDORS[o.v].name.padEnd(13)} ${money(perLb(o))}/lb · ${money(o.price)} (${o.pack}) · ${stock}${flag}`;
+    ...rows.map(r => {
+      const it = r.it;
+      const price = it.perLb
+        ? `${money(it.perLb)}/lb · ${money(it.price)}${it.lbs ? ' (' + fmtLbs(it.lbs) + ' lb)' : ''}`
+        : `${money(it.price)} (${it.pack || 'each'})`;
+      const flag = best && r === best ? '  <-- BEST/LB' : '';
+      return `${VENDORS[it.v].label.padEnd(13)} #${it.sku} ${it.name} · ${price}${flag}`;
     }),
-    best ? `Best: ${VENDORS[best.v].name} ${money(perLb(best))}/lb — Countryside Ledger` : '',
+    best ? `Best: ${VENDORS[best.it.v].label} ${money(best.it.perLb)}/lb — Countryside Ledger` : '',
   ].filter(Boolean);
   const text = lines.join('\n');
   const done = () => toast('SUMMARY COPIED — Nº ' + t.no);
@@ -830,35 +826,36 @@ $('#btnBack').addEventListener('click', () => { document.body.dataset.view = 're
 /* ============================================================
    MODAL — item detail
    ============================================================ */
-function openModal(pid, v){
-  const p = product(pid);
-  const o = p.offers.find(x => x.v === v) || p.offers[0];
-  const vend = VENDORS[o.v];
-  const stock = o.stock === 'out' ? '<span class="oos">OUT OF STOCK</span>' : o.stock === 'low' ? 'Low stock' : 'In stock';
+function openModal(k){
+  const it = BY_KEY.get(k);
+  if (!it) return;
+  const vend = VENDORS[it.v];
+  const shelf = shelfLine(it);
+  const gRow = (kk, vv) => vv ? `<div class="g-row"><span class="k">${kk}</span><span class="v">${vv}</span></div>` : '';
   $('#modalCard').innerHTML = `
     <div class="m-head">
       <div>
-        <div class="m-name">${esc(p.name.toUpperCase())}</div>
-        <div class="m-sub">${esc(p.variant)}</div>
+        <div class="m-name">${esc(it.name.toUpperCase())}</div>
+        ${it.brand || it.cat ? `<div class="m-sub">${esc(it.brand || it.cat)}</div>` : ''}
       </div>
       <button class="m-x" data-close aria-label="Close">✕</button>
     </div>
-    <div class="m-img"><div class="wheat"></div></div>
+    <div class="m-img">${it.img ? `<img loading="lazy" src="${imgSrc(it)}" alt="" onerror="this.remove()">` : '<div class="wheat"></div>'}</div>
     <div class="m-grid">
-      <div class="g-row"><span class="k">ITEM #</span><span class="v mono">#${esc(o.sku)}</span></div>
-      <div class="g-row"><span class="k">VENDOR</span><span class="v"><span class="v-tag" style="background:${vend.color};display:inline-block">${vend.name}</span></span></div>
-      <div class="g-row"><span class="k">PACK</span><span class="v">${esc(o.pack)}${o.tag ? ' · ' + esc(o.tag) : ''}</span></div>
-      <div class="g-row"><span class="k">PER LB</span><span class="v mono"><b>${money(perLb(o))}</b>/lb</span></div>
-      <div class="g-row"><span class="k">CASE</span><span class="v mono">${money(o.price)} · ${o.lb} lb</span></div>
-      <div class="g-row"><span class="k">STOCK</span><span class="v">${stock}</span></div>
-      <div class="g-row"><span class="k">SHELF LIFE</span><span class="v">${esc(p.shelf)}</span></div>
-      <div class="g-row"><span class="k">COMPARE</span><span class="v">${p.offers.length} vendor${p.offers.length === 1 ? '' : 's'} carry this</span></div>
+      ${gRow('ITEM #', '<span class="mono">#' + esc(it.sku) + '</span>')}
+      ${gRow('VENDOR', `<span class="v-tag" style="background:${vend.color};display:inline-block">${vend.name}</span>`)}
+      ${gRow('BRAND', it.brand ? esc(it.brand) : '')}
+      ${gRow('CATEGORY', it.cat ? esc(it.cat) : '')}
+      ${gRow('PACK', esc(it.pack || 'each'))}
+      ${gRow('PER LB', it.perLb ? `<span class="mono"><b>${money(it.perLb)}</b>/lb</span>` : '')}
+      ${gRow('PRICE', `<span class="mono">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</span>`)}
+      ${gRow('SHELF LIFE', shelf ? esc(shelf) : '')}
     </div>
     <div class="m-actions">
-      <button class="btn-pick" id="btnPick">PICK — COMPARE ${p.offers.length} VENDOR${p.offers.length === 1 ? '' : 'S'}</button>
+      <button class="btn-pick" id="btnPick">PICK — COMPARE VENDORS</button>
     </div>`;
   $('#modalWrap').classList.add('open');
-  $('#btnPick').addEventListener('click', () => { closeModal(); openTicket(pid, 'modal'); });
+  $('#btnPick').addEventListener('click', () => { closeModal(); openTicket(k, 'modal'); });
 }
 function closeModal(){ $('#modalWrap').classList.remove('open'); }
 $('#modalWrap').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target.classList.contains('scrim')) closeModal(); });
@@ -870,12 +867,12 @@ function renderDrawer(){
   const el = $('#drawerRows');
   el.innerHTML = state.vendorOrder.map((v, i) => {
     const vend = VENDORS[v];
-    const n = CATALOG.reduce((acc, p) => acc + (p.offers.some(o => o.v === v) ? 1 : 0), 0);
+    const n = ITEMS.reduce((acc, it) => acc + (it.v === v ? 1 : 0), 0);
     const hidden = state.hidden.includes(v);
     return `
       <div class="d-row ${hidden ? 'hidden-v' : ''}">
         <span class="v-tag" style="background:${vend.color}">${vend.name}</span>
-        <span class="d-meta">updated ${vend.updated} · ${n} items</span>
+        <span class="d-meta">list of ${vend.updated} · ${n.toLocaleString()} items</span>
         <button class="d-btn" data-up="${v}" ${i === 0 ? 'disabled' : ''} aria-label="Move up">▲</button>
         <button class="d-btn" data-down="${v}" ${i === state.vendorOrder.length - 1 ? 'disabled' : ''} aria-label="Move down">▼</button>
         <button class="d-btn" data-hide="${v}">${hidden ? 'SHOW' : 'HIDE'}</button>
@@ -886,7 +883,6 @@ function renderDrawer(){
     document.querySelectorAll(`[${attr}]`).forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute(attr) === pressed)));
   }
 }
-let updateVendor = null;
 $('#drawerWrap').addEventListener('click', e => {
   if (e.target.closest('[data-close]') || e.target.classList.contains('scrim')){ closeDrawer(); return; }
   const b = e.target.closest('button');
@@ -904,10 +900,12 @@ $('#drawerWrap').addEventListener('click', e => {
   else if (b.dataset.hide){
     const v = b.dataset.hide;
     state.hidden = state.hidden.includes(v) ? state.hidden.filter(x => x !== v) : [...state.hidden, v];
-    persist(); renderDrawer(); renderResults();
+    persist(); renderDrawer(); renderResults(); if (state.ticket) renderTicket();
     toast(VENDORS[v].name + (state.hidden.includes(v) ? ' HIDDEN FROM RESULTS' : ' BACK IN RESULTS'));
   }
-  else if (b.dataset.update){ updateVendor = b.dataset.update; $('#csvInput').click(); }
+  else if (b.dataset.update){
+    toast('DROP THE NEW SHEET IN “PRICE SHEETS” AND RE-IMPORT WITH CLAUDE');
+  }
   else if (b.dataset.thumbs){
     state.thumbs = b.dataset.thumbs; persist();
     document.body.classList.toggle('no-thumbs', state.thumbs === 'hide');
@@ -919,38 +917,22 @@ $('#drawerWrap').addEventListener('click', e => {
     renderDrawer();
   }
 });
-$('#csvInput').addEventListener('change', e => {
-  const f = e.target.files[0];
-  e.target.value = '';
-  if (!f || !updateVendor) return;
-  // Demo: acknowledge the file. A real import would parse the CSV into CATALOG offers here.
-  VENDORS[updateVendor].updated = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  toast(VENDORS[updateVendor].name + ' LIST RECEIVED — ' + f.name.toUpperCase());
-  renderDrawer(); renderResults(); if (state.ticket) renderTicket();
-  updateVendor = null;
-});
 function openDrawer(){ renderDrawer(); $('#drawerWrap').classList.add('open'); }
 function closeDrawer(){ $('#drawerWrap').classList.remove('open'); }
 $('#btnDrawer').addEventListener('click', openDrawer);
 
 /* ============================================================
    PHOTO — capture / drop → identify (offline demo matcher)
-   The real matcher would POST the image to a vision endpoint;
-   identifyPhoto() is the single seam to swap that in.
+   Matches the filename against the real catalog; the real
+   matcher would POST the image to a vision endpoint here.
    ============================================================ */
 function identifyPhoto(file){
   return new Promise(resolve => {
     setTimeout(() => {
-      const words = (file.name || '').toLowerCase().replace(/[-_.]/g, ' ').split(/\s+/).filter(Boolean);
-      let bestP = null, bestScore = 0;
-      for (const p of CATALOG){
-        const hay = (p.name + ' ' + p.variant + ' ' + p.kw).toLowerCase();
-        const score = words.filter(w => w.length > 2 && hay.includes(w)).length;
-        if (score > bestScore){ bestScore = score; bestP = p; }
-      }
-      if (bestP) resolve({p: bestP, conf: Math.min(97, 82 + bestScore * 5)});
-      else resolve({p: product('sunflower-rs'), conf: 92}); // demo fallback match
-    }, 1100);
+      const q = (file.name || '').toLowerCase().replace(/\.(jpe?g|png|webp|gif|heic)$/i, '').replace(/[-_.]/g, ' ');
+      const hits = searchItems(q).sort((a, b) => b.score - a.score || (b.it.img ? 1 : 0) - (a.it.img ? 1 : 0));
+      resolve(hits.length ? {it: hits[0].it, conf: hits[0].conf} : null);
+    }, 900);
   });
 }
 async function handlePhoto(file){
@@ -961,14 +943,18 @@ async function handlePhoto(file){
   }
   $('#loadingOverlay').classList.add('show');
   try{
-    const {p, conf} = await identifyPhoto(file);
-    state.query = p.name.split(',')[0];
+    const m = await identifyPhoto(file);
+    if (!m){
+      toast('COULDN’T MATCH THAT PHOTO — TRY THE SEARCH BOX', true);
+      return;
+    }
+    state.query = nameTokens(m.it.name).slice(0, 2).join(' ') || m.it.name;
     $('#q').value = state.query;
     $('#searchBox').classList.add('has-q');
     state.expanded = false;
     renderResults();
-    openTicket(p.id, 'photo');
-    toast(`MATCHED ${p.name.toUpperCase()} — ${conf}% SURE`);
+    openTicket(key(m.it), 'photo');
+    toast(`MATCHED ${m.it.name.toUpperCase().slice(0, 40)} — ${m.conf}% SURE`);
   } catch(err){
     toast('COULDN’T READ THAT PHOTO', true);
   } finally {
@@ -1013,7 +999,7 @@ $('#q').addEventListener('input', e => {
     state.expanded = false;
     document.body.dataset.view = 'results';
     renderResults();
-  }, 120);
+  }, 150);
 });
 $('#btnClear').addEventListener('click', () => {
   $('#q').value = '';
@@ -1035,8 +1021,8 @@ window.addEventListener('keydown', e => {
    BOOT
    ============================================================ */
 (function boot(){
-  // favicon — the brand wheat on wheat-red over two ledger rules
-  const FAV = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="#89231F"/><rect x="8" y="50" width="48" height="1.6" fill="#F6EFDC" opacity=".55"/><rect x="8" y="55.5" width="48" height="1.6" fill="#F6EFDC" opacity=".55"/><g fill="#F6EFDC" transform="translate(32,27) rotate(-22) scale(0.13) translate(-213.76,-75.585)"><path d="M0,81.29s1.16-23.28,18.58-27.78c0,0-.17,28.96-18.58,27.78Z"/><path d="M64.98,41.22s-38.02,6-46.4,42c0,0,42.75,7.04,53.32-42.65l57.91-27.91-64.83,28.57Z"/><path d="M61.85,81.33s11.22-48.2,84.78-52.37L226.98,3.65l-79.57,27.39s-10.43,57.53-85.57,50.28Z"/><path d="M207.93,28.17c-72.52,8.87-78.13,50.09-78.13,50.09,0,0,63.78,12.52,83.09-48.52L315.41,0l-107.48,28.17Z"/><path d="M281.04,24.52c-74.93,4.7-87.85,50.48-87.85,50.48,0,0,65.35,16.04,89.02-48.72l86.87-18.59-88.04,16.83Z"/><path d="M333.09,32.28c-67.57,4.04-73.17,41.61-73.17,41.61,0,0,54.91,16.17,75.65-40.04l68.48-6.91-70.96,5.35Z"/><path d="M18.58,100.17s-1.99,15.39,22.86,18.59c0,0-4.04-20.22-22.86-18.59Z"/><path d="M122.89,132.46c-72.78,6.26-90.78-44.35-90.78-44.35,0,0,60.13-21.26,90.78,41.93l44.35,18-44.35-15.59Z"/><path d="M101.5,86.61s8.8,44.41,89.02,45.39l104.28,19.17-102.96-21.13s-25.39-60.26-90.35-43.43Z"/><path d="M168.61,84.67s14.54,46.74,91.3,45.37c0,0,81.26,10.76,81.26,10.17l-81.26-12.52s-19.5-60.03-91.3-43.03Z"/><path d="M236.17,84.57s9.78,38.74,83.93,37.57l62.61,6.07-61.24-8.22s-21.25-53.85-85.3-35.41Z"/><path d="M298.97,83.64s23.67,36.93,80.61,10.12l47.93-.18-48.33-2.95s-56.35-38.25-80.22-6.99Z"/></g></svg>`;
+  // favicon — the brand mark (cream wheat on wheat-red, two gold rules)
+  const FAV = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="420 0 1080 1080"><defs><style>.f1{fill:#8b231f}.f2{fill:#cbab72}.f3{opacity:.82}.f4{fill:#ffffe5}</style></defs><rect class="f1" x="420.5" y=".5" width="1079" height="1079" rx="160.41" ry="160.41"/><g class="f3"><rect class="f2" x="541.49" y="857.55" width="837.02" height="42.2"/></g><g class="f4"><path class="f4" d="M550.91,743.65s-25.04-47.85,4.46-77.3c0,0,33.69,58.02-4.46,77.3Z"/><path class="f4" d="M633.57,587.29s-68.87,56.65-43.3,138.38c0,0,93.63-36.17,56.35-147.81l82.84-123.77-95.88,133.22v-.02Z"/><path class="f4" d="M674.45,671.05s-34.23-109.43,107.75-204.18l130.7-144.94-126.7,148.18s46.77,127.13-111.78,200.94h.03Z"/><path class="f4" d="M903.67,393.27c-134.38,102.92-97.15,191.82-97.15,191.82,0,0,142.06-49.94,108.9-194.51l169.76-179.84-181.51,182.53Z"/><path class="f4" d="M1045.36,300.08c-144.09,97.42-116.1,204.01-116.1,204.01,0,0,149.33-44.76,120.5-201.87l151.61-139.19-156.02,137.05h0Z"/><path class="f4" d="M1158.41,254.42c-130.17,87.46-97.21,169.06-97.21,169.06,0,0,128.64-32.23,104.01-168.83l128.62-94.26-135.4,94.06v-.02Z"/><path class="f4" d="M610.19,759.51s14.11,33.07,67.49,10.26c0,0-31.82-35.63-67.49-10.26Z"/><path class="f4" d="M856.41,701.43c-137.97,98.01-233.37,18.11-233.37,18.11,0,0,95.08-113.1,230.53-22.94l109.7-16.17-106.87,20.98v.02Z"/><path class="f4" d="M759.83,635.01s69.75,78.33,231.08-13.96l230.74-84.25-230.41,78.78s-121.5-90.49-231.43,19.44h.02Z"/><path class="f4" d="M891.55,552.29s83.95,76.24,235.61-16.68c0,0,174.9-73.99,174.2-75.17l-176.96,70.48s-109.47-96.95-232.86,21.35v.02Z"/><path class="f4" d="M1026.33,472.71s65.05,65.86,211.73-23.6l132.15-61.44-131.94,55.54s-105.7-82.56-211.93,29.52v-.02Z"/><path class="f4" d="M1150.63,397.06s90.65,45.93,172.85-74.51l95.49-56.67-99.97,50.9s-157.46-10.17-168.39,80.3h.02Z"/></g><g class="f3"><rect class="f2" x="541.49" y="963.3" width="837.02" height="42.2"/></g></svg>`;
   const link = document.createElement('link');
   link.rel = 'icon';
   link.href = 'data:image/svg+xml;base64,' + btoa(FAV);
@@ -1044,8 +1030,8 @@ window.addEventListener('keydown', e => {
 
   document.body.classList.toggle('no-thumbs', state.thumbs === 'hide');
   document.documentElement.style.setProperty('--row-pad', state.density === 'compact' ? '7px' : '12px');
-  renderResults();
   renderTicket();
+  loadCatalog();
 
   // installable app: offline shell via service worker (https / localhost only)
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){

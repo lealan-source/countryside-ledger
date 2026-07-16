@@ -1,3 +1,7 @@
 .claude/settings.local.json
 publish.ps1
 publish.cmd
+
+# Source data stays local — only data/catalog.json and images/ (thumbnails) are published
+Product Images/
+Price Sheets/

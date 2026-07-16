@@ -1,12 +1,13 @@
 /* Countryside Ledger — service worker
    App shell is precached so the ledger opens in the aisles with no signal.
    Bump VERSION on every deploy to roll the cache. */
-const VERSION = 'countryside-ledger-v1';
+const VERSION = 'countryside-ledger-v2';
 const RUNTIME = VERSION + '-runtime';
 const SHELL = [
   './',
   './index.html',
   './manifest.webmanifest',
+  './data/catalog.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/maskable-512.png',
