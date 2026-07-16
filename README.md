@@ -51,19 +51,23 @@ pound; Frontier prices per each with case counts. Cross-vendor comparison on
 the ticket is a runtime closest-match by name — each row shows the matched
 item and its match %, so check pack sizes before ordering.
 
-## Photo search (PC only)
+## Photo search
 
-On the phone there is no photo button — search by name or item #. On the
-office PC, photo search runs through Claude: the app posts the photo to a
-local helper (`tools/photo-bridge.js`, port 8474) which asks Claude Code —
-signed in with the store's regular Claude subscription, no API key — to
-identify the product, then matches the answer against the catalog.
+The model only *reads the label* (returning `{product, details,
+search_query, core_query}`, ignoring barcodes — they're the store's own
+scale-label codes); the app's search engine does the matching, retrying
+with the broader `core_query` when the specific match lands weak.
 
-The **Countryside Ledger** Start Menu / Desktop shortcut runs
-`tools/ledger-pc.vbs`, which starts the bridge silently and opens the app
-window, so it just works. If the app ever toasts "photo bridge isn't
-running", reopen the Ledger from that shortcut. One-time setup on a new PC:
-`npm install -g @anthropic-ai/claude-code`, run `claude` once and `/login`.
+- **Office PC** — free. The app posts the photo to a local helper
+  (`tools/photo-bridge.js`, port 8474) which asks Claude Code, signed in
+  with the store's regular Claude subscription. The **Countryside Ledger**
+  Start Menu / Desktop shortcut runs `tools/ledger-pc.vbs`, which starts
+  the helper and opens the app. One-time setup on a new PC:
+  `npm install -g @anthropic-ai/claude-code`, run `claude` once, `/login`.
+- **Phone** — via API key. Price lists › → API KEY, paste a key from
+  console.anthropic.com. The photo goes straight to Claude
+  (claude-haiku-4-5, image downscaled to ≤1568px) — roughly a quarter of a
+  cent per photo. The key is stored only on that device.
 
 ## Design source
 

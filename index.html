@@ -377,9 +377,8 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
       <button data-density="compact">COMPACT</button>
     </div>
     <div class="d-sec">PHOTO SEARCH</div>
-    <div class="d-field"><label for="cfgPc">PC ADDRESS</label><input id="cfgPc" type="url" placeholder="https://office-pc.tailXXXX.ts.net" autocomplete="off" spellcheck="false"></div>
     <div class="d-field"><label for="cfgKey">API KEY</label><input id="cfgKey" type="password" placeholder="sk-ant-… (optional)" autocomplete="off"></div>
-    <div class="d-note">Photos go to the office PC when it's reachable (free, uses the store's Claude). With an API key saved, they go straight to Claude when the PC isn't — a fraction of a cent per photo. Both settings stay on this device only.</div>
+    <div class="d-note">On the office PC, photos use the store's Claude sign-in for free. On the phone, paste an API key from console.anthropic.com — about a quarter of a cent per photo. The key stays on this device only.</div>
     <div class="d-note">To update prices, drop the new sheet in the Price Sheets folder and re-import — order and hidden vendors are remembered on this device.</div>
   </div>
 </div>
@@ -902,11 +901,9 @@ $('#drawerWrap').addEventListener('click', e => {
 function openDrawer(){
   renderDrawer();
   const cfg = photoCfg();
-  $('#cfgPc').value = cfg.pc || '';
   $('#cfgKey').value = cfg.key || '';
   $('#drawerWrap').classList.add('open');
 }
-$('#cfgPc').addEventListener('change', e => savePhotoCfg({pc: e.target.value.trim()}));
 $('#cfgKey').addEventListener('change', e => savePhotoCfg({key: e.target.value.trim()}));
 function closeDrawer(){ $('#drawerWrap').classList.remove('open'); }
 $('#btnDrawer').addEventListener('click', openDrawer);
@@ -1016,14 +1013,11 @@ async function identifyViaApi(key, file){
 }
 async function identifyPhoto(file){
   const cfg = photoCfg();
-  const bases = [];
-  if (window.matchMedia('(min-width:1024px)').matches) bases.push(LOCAL_BRIDGE);
-  if (cfg.pc) bases.push(String(cfg.pc).replace(/\/+$/, ''));
-  for (const base of bases){
-    if (await bridgeAlive(base)) return identifyViaBridge(base, file);
+  if (window.matchMedia('(min-width:1024px)').matches && await bridgeAlive(LOCAL_BRIDGE)){
+    return identifyViaBridge(LOCAL_BRIDGE, file);
   }
   if (cfg.key) return identifyViaApi(cfg.key, file);
-  throw new Error(bases.length ? 'unreachable' : 'no-engine');
+  throw new Error('no-engine');
 }
 function bestFor(q){
   if (!q) return null;
@@ -1066,8 +1060,7 @@ async function handlePhoto(file){
     toast(`MATCHED ${m.hit.it.name.toUpperCase().slice(0, 40)} — ${m.hit.conf}% SURE`);
   } catch(err){
     const code = String(err && err.message);
-    if (code === 'no-engine') toast('SET UP PHOTO SEARCH UNDER “PRICE LISTS” FIRST', true);
-    else if (code === 'unreachable') toast('CAN’T REACH THE OFFICE PC — IS IT ON?', true);
+    if (code === 'no-engine') toast(window.matchMedia('(min-width:1024px)').matches ? 'OPEN THE LEDGER FROM ITS SHORTCUT, OR ADD AN API KEY UNDER “PRICE LISTS”' : 'ADD AN API KEY UNDER “PRICE LISTS” TO SEARCH BY PHOTO', true);
     else if (code === 'key') toast('API KEY REJECTED — CHECK IT UNDER “PRICE LISTS”', true);
     else if (code === 'auth') toast('CLAUDE ISN’T SIGNED IN ON THE PC — RUN THE LOGIN ONCE', true);
     else toast('COULDN’T READ THAT PHOTO — TRY AGAIN', true);
