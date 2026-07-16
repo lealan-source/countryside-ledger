@@ -6,6 +6,8 @@ Walnut Creek, Frontier). Built from the Claude Design redesign spec
 (“Countryside Ledger Redesign.dc.html”): ledger paper, thin black rules,
 condensed black caps, and red ink marking the numbers that matter.
 
+**Live app:** https://lealan-source.github.io/countryside-ledger/
+
 ## Using it
 
 - **Phone (Android):** open the hosted URL in Chrome → menu (⋮) → **Add to
