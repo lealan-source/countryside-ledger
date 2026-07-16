@@ -110,7 +110,6 @@ body[data-view="ticket"] .toolbar{display:none}
 .tip{font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--chalk-dim);text-align:center;margin-top:11px}
 .lists-link{display:block;margin:8px auto 0;background:none;border:none;font-family:var(--serif);font-style:italic;font-size:12px;color:#89231F;text-decoration:underline;text-decoration-color:rgba(137,35,31,.4);cursor:pointer}
 .lists-link:hover{color:#5E1512}
-@media (max-width:1023px){.btn-photo{display:none}}
 
 /* ============================================================
    RESULTS
@@ -214,6 +213,9 @@ body[data-view="ticket"] .results-page{display:none}
 .d-note{font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--chalk-dim);margin-top:12px;text-align:center}
 .d-seg{height:38px}
 .d-seg button{font-size:11px}
+.d-field{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.d-field label{font-family:var(--display);font-size:10px;letter-spacing:.16em;color:var(--chalk-dim);width:86px;flex:none}
+.d-field input{flex:1;min-width:0;height:38px;background:var(--ticket);border:1px solid var(--rule);padding:0 10px;font:inherit;font-size:12.5px;color:var(--ink)}
 
 /* ============================================================
    MODAL — item detail
@@ -339,7 +341,7 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
         <button data-mode="prepacked" aria-pressed="false">PREPACKED</button>
       </div>
     </div>
-    <div class="tip">Tip — the item # on the shelf tag is the fastest search.</div>
+    <div class="tip">Tip — shoot the shelf tag, not the bag.</div>
     <button class="lists-link" id="btnDrawer">Price lists ›</button>
   </div>
 
@@ -374,6 +376,10 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
       <button data-density="comfortable">COMFORTABLE</button>
       <button data-density="compact">COMPACT</button>
     </div>
+    <div class="d-sec">PHOTO SEARCH</div>
+    <div class="d-field"><label for="cfgPc">PC ADDRESS</label><input id="cfgPc" type="url" placeholder="https://office-pc.tailXXXX.ts.net" autocomplete="off" spellcheck="false"></div>
+    <div class="d-field"><label for="cfgKey">API KEY</label><input id="cfgKey" type="password" placeholder="sk-ant-… (optional)" autocomplete="off"></div>
+    <div class="d-note">Photos go to the office PC when it's reachable (free, uses the store's Claude). With an API key saved, they go straight to Claude when the PC isn't — a fraction of a cent per photo. Both settings stay on this device only.</div>
     <div class="d-note">To update prices, drop the new sheet in the Price Sheets folder and re-import — order and hidden vendors are remembered on this device.</div>
   </div>
 </div>
@@ -407,6 +413,7 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
 
 <input type="file" id="fileInput" accept="image/*" capture="environment" hidden>
 
+<script src="search.js"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -465,8 +472,10 @@ const thumbHTML = it => `<span class="thumb">${it.img ? `<img loading="lazy" dec
 const shelfLine = it => {
   if (!it.shelf) return '';
   const mo = Math.round(it.shelf / 30.4);
-  return mo >= 24 ? `Keeps ~${Math.round(mo / 12)} years` : mo >= 2 ? `Keeps ~${mo} months` : `Keeps ~${it.shelf} days`;
+  return mo >= 24 ? `Keeps ${Math.round(mo / 12)} years` : mo >= 2 ? `Keeps ${mo} months` : `Keeps ${it.shelf} days`;
 };
+const stockNote = it => it.stock === 'out' ? ' · <span class="oos">OUT OF STOCK</span>'
+  : it.stock === 'closeout' ? ' · <span class="oos">CLOSEOUT</span>' : '';
 
 let toastTimer;
 function toast(msg, err){
@@ -496,11 +505,12 @@ async function loadCatalog(){
       const it = {
         v: data.v[a[0]], sku: String(a[1]), name: a[2], brand: a[3], cat: a[4], pack: a[5],
         lbs: a[6], price: a[7], perLb: a[8], bulk: !!a[9], img: !!a[10], shelf: a[11],
+        stock: a[12] || '', u: a[13] || '', brk: a[14] || null,
       };
-      it.hay = (it.name + ' ' + it.brand + ' ' + it.cat + ' ' + it.sku).toLowerCase();
       BY_KEY.set(key(it), it);
       return it;
     });
+    LedgerSearch.build(ITEMS);
     if (data.generated){
       PRICES_REFRESHED = new Date(data.generated + 'T12:00:00')
         .toLocaleDateString('en-US', {month:'short', day:'numeric'});
@@ -520,49 +530,30 @@ async function loadCatalog(){
    SEARCH — score all items against a query
    ============================================================ */
 function searchItems(q){
-  q = q.trim().toLowerCase();
-  const bare = q.replace(/^#/, '');
-  const tokens = q.split(/\s+/).filter(Boolean);
-  const out = [];
-  if (!tokens.length) return out;
-  for (const it of ITEMS){
-    let score = 0;
-    if (it.sku.toLowerCase() === bare) score = 99;
-    else {
-      let all = true;
-      for (const t of tokens){ if (!it.hay.includes(t)){ all = false; break; } }
-      if (!all) continue;
-      const nl = it.name.toLowerCase();
-      if (nl === q) score = 98;
-      else if (nl.startsWith(q)) score = 93;
-      else {
-        let inName = 0;
-        for (const t of tokens) if (nl.includes(t)) inName++;
-        score = 76 + Math.round(8 * inName / tokens.length) + Math.max(0, 8 - Math.floor(nl.length / 14));
-      }
-    }
-    out.push({it, score, conf: Math.max(60, Math.min(99, score - (hash(it.sku) % 6)))});
-  }
-  return out;
+  return LedgerSearch.query(q).hits;
 }
 function searchGroups(q){
-  const hits = searchItems(q);
+  const res = LedgerSearch.query(q);
+  const mode = res.intent || state.mode;
   const groups = [];
   for (const v of state.vendorOrder){
     if (state.hidden.includes(v)) continue;
-    const rows = hits.filter(r => r.it.v === v);
+    const rows = res.hits.filter(r => r.it.v === v);
+    if (!rows.length) continue;
+    const best = Math.max(...rows.map(r => r.score));
     rows.sort((a, b) => {
-      if (state.mode !== 'all'){
-        const pref = x => (state.mode === 'bulk' ? !x.it.bulk : x.it.bulk) ? 1 : 0;
+      if (mode !== 'all'){
+        const pref = x => (mode === 'bulk' ? !x.it.bulk : x.it.bulk) ? 1 : 0;
         if (pref(a) !== pref(b)) return pref(a) - pref(b);
       }
       return b.score - a.score || (a.it.perLb || 1e9) - (b.it.perLb || 1e9);
     });
-    if (rows.length) groups.push({v, rows});
+    groups.push({v, rows, best});
   }
+  // vendor sections order by best match; manual order is the tiebreak
+  groups.sort((a, b) => (b.best - a.best) || (state.vendorOrder.indexOf(a.v) - state.vendorOrder.indexOf(b.v)));
   return groups;
 }
-
 /* ============================================================
    RENDER — results
    ============================================================ */
@@ -577,7 +568,7 @@ function renderResults(){
       <div class="state">
         <div class="wheat"></div>
         <div class="h">THE LEDGER IS OPEN</div>
-        <div class="s">${ITEMS.length.toLocaleString()} items across ${Object.keys(VENDORS).length} price lists.<br>Search an item or item #${window.matchMedia('(min-width:1024px)').matches ? ' — or shoot the shelf tag' : ''}.</div>
+        <div class="s">${ITEMS.length.toLocaleString()} items across ${Object.keys(VENDORS).length} price lists.<br>Search an item or item # — or shoot the shelf tag.</div>
       </div>`;
     return;
   }
@@ -635,7 +626,7 @@ function rowHTML(r){
       ${thumbHTML(it)}
       <span class="r-main">
         <span class="r-name" style="display:block">${esc(it.name)}</span>
-        <span class="r-meta" style="display:block">#${esc(it.sku)} · ${mid}${chip ? ' · ' + chip : ''}</span>
+        <span class="r-meta" style="display:block">#${esc(it.sku)} · ${mid}${chip ? ' · ' + chip : ''}${stockNote(it)}</span>
       </span>
       <span class="r-price">${price}</span>
       <span class="r-conf">
@@ -665,25 +656,13 @@ function nameTokens(name){
   )];
 }
 function closestMatch(it, v){
-  const toks = nameTokens(it.name);
+  const brand = new Set((it.brand || '').toLowerCase().split(/[^a-z]+/).filter(Boolean));
+  const toks = nameTokens(it.name).filter(t => !brand.has(t)).slice(0, 4);
   if (!toks.length) return null;
-  let best = null, bestS = 0;
-  for (const c of ITEMS){
-    if (c.v !== v) continue;
-    let hit = 0;
-    for (const t of toks) if (c.hay.includes(t)) hit++;
-    if (!hit) continue;
-    let s = hit / toks.length;
-    if (c.perLb) s += 0.08;
-    if (it.lbs && c.lbs){
-      const ratio = Math.max(it.lbs, c.lbs) / Math.min(it.lbs, c.lbs);
-      if (ratio <= 2) s += 0.06;
-    }
-    if (s > bestS){ bestS = s; best = c; }
-  }
-  return bestS >= 0.62 ? {it: best, sim: Math.min(97, Math.round(bestS * 70) + 20)} : null;
+  const hits = LedgerSearch.query(toks.join(' ')).hits.filter(h => h.it.v === v);
+  if (!hits.length || hits[0].score < 0.55) return null;
+  return {it: hits[0].it, sim: hits[0].conf};
 }
-
 /* ============================================================
    RENDER — comparison ticket
    ============================================================ */
@@ -734,14 +713,14 @@ function renderTicket(){
   }
   const picked = BY_KEY.get(t.k);
   const rows = ticketRows(picked);
-  const priced = rows.filter(r => r.it.perLb);
+  const priced = rows.filter(r => r.it.perLb && r.it.stock !== 'out');
   const best = priced.length ? priced.reduce((a, b) => a.it.perLb <= b.it.perLb ? a : b) : null;
   let rowsHTML = '';
   for (const r of rows){
     const it = r.it, vend = VENDORS[it.v];
     const sub = r.picked
-      ? `${esc(it.pack || 'each')}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}`
-      : `<span class="match-name">${esc(it.name)}</span>#${esc(it.sku)} · ${esc(it.pack || 'each')} · match ${r.sim}%`;
+      ? `${esc(it.pack || 'each')}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}${stockNote(it)}`
+      : `<span class="match-name">${esc(it.name)}</span>#${esc(it.sku)} · ${esc(it.pack || 'each')} · match ${r.sim}%${stockNote(it)}`;
     const price = it.perLb
       ? `<div class="lb">${money(it.perLb)}<small>/lb</small></div>
          <div class="case">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</div>`
@@ -786,7 +765,7 @@ function copySummary(){
   if (!t || !BY_KEY.has(t.k)) return;
   const picked = BY_KEY.get(t.k);
   const rows = ticketRows(picked);
-  const priced = rows.filter(r => r.it.perLb);
+  const priced = rows.filter(r => r.it.perLb && r.it.stock !== 'out');
   const best = priced.length ? priced.reduce((a, b) => a.it.perLb <= b.it.perLb ? a : b) : null;
   const lines = [
     `${picked.name.toUpperCase()} (#${picked.sku})`,
@@ -850,6 +829,8 @@ function openModal(k){
       ${gRow('PACK', esc(it.pack || 'each'))}
       ${gRow('PER LB', it.perLb ? `<span class="mono"><b>${money(it.perLb)}</b>/lb</span>` : '')}
       ${gRow('PRICE', `<span class="mono">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</span>`)}
+      ${gRow('QTY BREAK', it.brk ? '<span class="mono">' + it.brk[0] + '+ @ ' + money(it.brk[1]) + '</span>' : '')}
+      ${gRow('STATUS', it.stock ? '<span class="oos">' + it.stock.toUpperCase() + '</span>' : '')}
       ${gRow('SHELF LIFE', shelf ? esc(shelf) : '')}
     </div>
     <div class="m-actions">
@@ -918,7 +899,15 @@ $('#drawerWrap').addEventListener('click', e => {
     renderDrawer();
   }
 });
-function openDrawer(){ renderDrawer(); $('#drawerWrap').classList.add('open'); }
+function openDrawer(){
+  renderDrawer();
+  const cfg = photoCfg();
+  $('#cfgPc').value = cfg.pc || '';
+  $('#cfgKey').value = cfg.key || '';
+  $('#drawerWrap').classList.add('open');
+}
+$('#cfgPc').addEventListener('change', e => savePhotoCfg({pc: e.target.value.trim()}));
+$('#cfgKey').addEventListener('change', e => savePhotoCfg({key: e.target.value.trim()}));
 function closeDrawer(){ $('#drawerWrap').classList.remove('open'); }
 $('#btnDrawer').addEventListener('click', openDrawer);
 
@@ -927,32 +916,132 @@ $('#btnDrawer').addEventListener('click', openDrawer);
    Matches the filename against the real catalog; the real
    matcher would POST the image to a vision endpoint here.
    ============================================================ */
-const BRIDGE = 'http://127.0.0.1:8474';
-async function identifyPhoto(file){
-  const res = await fetch(BRIDGE + '/identify', { method: 'POST', headers: {'Content-Type': file.type}, body: file });
+/* Photo engines, tried in order:
+   1. local bridge on this PC (free, uses the store's Claude subscription)
+   2. the office PC's bridge over its Tailscale address (phone in the aisles, PC on)
+   3. direct Anthropic API call with a device-local key (works anywhere, per-photo cost)
+   Settings live in localStorage on each device — never in the repo. */
+const LOCAL_BRIDGE = 'http://127.0.0.1:8474';
+const PHOTO_PROMPT =
+  'This photo is from a bulk-food store: either a shelf tag or a product package. Identify the product. ' +
+  'Ignore ALL barcodes and barcode numbers (they are the store’s own scale-label codes, never catalog numbers). ' +
+  'Ignore per-bag net weight, price, and sell-by dates (they vary bag to bag). ' +
+  'Reply with ONLY minified JSON, no other text: ' +
+  '{"product":"<what it is>","details":"<brand/pack details if visible>",' +
+  '"search_query":"<2 to 5 lowercase words, catalog-style, flavor and color words omitted>",' +
+  '"core_query":"<1 or 2 lowercase words, the generic product noun>"}';
+
+function photoCfg(){
+  try{ return JSON.parse(localStorage.getItem('ledgerPhotoCfg') || '{}'); }catch(e){ return {}; }
+}
+function savePhotoCfg(patch){
+  const cfg = {...photoCfg(), ...patch};
+  try{ localStorage.setItem('ledgerPhotoCfg', JSON.stringify(cfg)); }catch(e){}
+  return cfg;
+}
+function fetchTimeout(url, opts, ms){
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  return fetch(url, {...opts, signal: ctl.signal}).finally(() => clearTimeout(t));
+}
+async function bridgeAlive(base){
+  try{ return (await fetchTimeout(base + '/health', {}, 2500)).ok; }catch(e){ return false; }
+}
+// FileReader → Image → canvas ≤1568px → jpeg base64 (blob: URLs avoided on purpose)
+function downscale(file){
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error('bad-image'));
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('bad-image'));
+      img.onload = () => {
+        const scale = Math.min(1, 1568 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * scale));
+        c.height = Math.max(1, Math.round(img.height * scale));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.85).split(',')[1]);
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+function normalizeAnswer(j){
+  const ans = {
+    search: typeof j.search_query === 'string' ? j.search_query : null,
+    core: typeof j.core_query === 'string' ? j.core_query : null,
+  };
+  return (ans.search || ans.core) ? ans : null;
+}
+async function identifyViaBridge(base, file){
+  const res = await fetchTimeout(base + '/identify', {
+    method: 'POST', headers: {'Content-Type': file.type}, body: file,
+  }, 120000);
   const j = await res.json().catch(() => ({error: 'bad-json'}));
   if (!res.ok || j.error) throw new Error(j.error || 'bridge');
-  return j; // {sku, terms} from Claude via the local photo bridge
+  const ans = normalizeAnswer(j);
+  if (!ans) throw new Error('no-answer');
+  return ans;
 }
+async function identifyViaApi(key, file){
+  const b64 = await downscale(file);
+  const res = await fetchTimeout('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5',
+      max_tokens: 400,
+      messages: [{role: 'user', content: [
+        {type: 'image', source: {type: 'base64', media_type: 'image/jpeg', data: b64}},
+        {type: 'text', text: PHOTO_PROMPT},
+      ]}],
+    }),
+  }, 60000);
+  if (res.status === 401 || res.status === 403) throw new Error('key');
+  if (!res.ok) throw new Error('api');
+  const j = await res.json();
+  const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  const m = text.match(/\{[\s\S]*\}/);
+  let ans = null;
+  try{ ans = m && normalizeAnswer(JSON.parse(m[0])); }catch(e){}
+  if (!ans) throw new Error('no-answer');
+  return ans;
+}
+async function identifyPhoto(file){
+  const cfg = photoCfg();
+  const bases = [];
+  if (window.matchMedia('(min-width:1024px)').matches) bases.push(LOCAL_BRIDGE);
+  if (cfg.pc) bases.push(String(cfg.pc).replace(/\/+$/, ''));
+  for (const base of bases){
+    if (await bridgeAlive(base)) return identifyViaBridge(base, file);
+  }
+  if (cfg.key) return identifyViaApi(cfg.key, file);
+  throw new Error(bases.length ? 'unreachable' : 'no-engine');
+}
+function bestFor(q){
+  if (!q) return null;
+  const hits = searchItems(q);
+  if (!hits.length) return null;
+  hits.sort((a, b) => b.score - a.score || (b.it.img ? 1 : 0) - (a.it.img ? 1 : 0));
+  return {hit: hits[0], q};
+}
+// The LLM reads the label; the catalog search does the matching. If the
+// specific query lands weak (<80), auto-broaden to the core noun and keep
+// whichever result set matched better.
 function findByAnswer(ans){
-  if (ans.sku){
-    for (const v of Object.keys(VENDORS)){
-      const hit = BY_KEY.get(v + ':' + ans.sku);
-      if (hit) return {it: hit, conf: 97};
-    }
+  let best = bestFor(ans.search);
+  if (!best || best.hit.conf < 80){
+    const alt = bestFor(ans.core);
+    if (alt && (!best || alt.hit.conf > best.hit.conf)) best = alt;
   }
-  if (ans.terms){
-    const terms = ans.terms.split(/\s+/).filter(Boolean);
-    while (terms.length){
-      const hits = searchItems(terms.join(' '));
-      if (hits.length){
-        hits.sort((a, b) => b.score - a.score || (b.it.img ? 1 : 0) - (a.it.img ? 1 : 0));
-        return {it: hits[0].it, conf: hits[0].conf, terms: terms.join(' ')};
-      }
-      terms.pop();
-    }
-  }
-  return null;
+  return best;
 }
 async function handlePhoto(file){
   if (!file) return;
@@ -968,16 +1057,19 @@ async function handlePhoto(file){
       toast('NOTHING IN THE LEDGER LOOKS LIKE THAT — TRY THE SEARCH BOX', true);
       return;
     }
-    state.query = m.terms || nameTokens(m.it.name).slice(0, 2).join(' ') || m.it.name;
+    state.query = m.q;
     $('#q').value = state.query;
     $('#searchBox').classList.add('has-q');
     state.expanded = false;
     renderResults();
-    openTicket(key(m.it), 'photo');
-    toast(`MATCHED ${m.it.name.toUpperCase().slice(0, 40)} — ${m.conf}% SURE`);
+    openTicket(key(m.hit.it), 'photo');
+    toast(`MATCHED ${m.hit.it.name.toUpperCase().slice(0, 40)} — ${m.hit.conf}% SURE`);
   } catch(err){
-    if (String(err.message) === 'auth') toast('CLAUDE ISN’T SIGNED IN ON THIS PC — RUN THE LOGIN ONCE', true);
-    else if (err instanceof TypeError) toast('PHOTO BRIDGE ISN’T RUNNING — OPEN THE LEDGER FROM ITS SHORTCUT', true);
+    const code = String(err && err.message);
+    if (code === 'no-engine') toast('SET UP PHOTO SEARCH UNDER “PRICE LISTS” FIRST', true);
+    else if (code === 'unreachable') toast('CAN’T REACH THE OFFICE PC — IS IT ON?', true);
+    else if (code === 'key') toast('API KEY REJECTED — CHECK IT UNDER “PRICE LISTS”', true);
+    else if (code === 'auth') toast('CLAUDE ISN’T SIGNED IN ON THE PC — RUN THE LOGIN ONCE', true);
     else toast('COULDN’T READ THAT PHOTO — TRY AGAIN', true);
   } finally {
     $('#loadingOverlay').classList.remove('show');

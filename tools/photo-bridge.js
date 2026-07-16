@@ -35,9 +35,12 @@ function identify(imgPath) {
     const prompt =
       `Look at the image file at ${imgPath} — a photo taken in a bulk-food store, ` +
       `either a shelf tag or a product package. Identify the product. ` +
+      `Ignore ALL barcodes and barcode numbers (they are the store's own scale-label codes, never catalog numbers). ` +
+      `Ignore per-bag net weight, price, and sell-by dates (they vary bag to bag). ` +
       `Reply with ONLY minified JSON, no other text: ` +
-      `{"sku":"<item/product number digits if clearly visible, else null>",` +
-      `"terms":"<2 to 5 lowercase words naming the product, most specific first>"}`;
+      `{"product":"<what it is>","details":"<brand/pack details if visible>",` +
+      `"search_query":"<2 to 5 lowercase words, catalog-style, flavor and color words omitted>",` +
+      `"core_query":"<1 or 2 lowercase words, the generic product noun>"}`;
     const p = spawn(CLAUDE, ['-p', prompt, '--model', 'haiku', '--allowedTools', 'Read'], {
       cwd: path.dirname(imgPath),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -55,8 +58,9 @@ function identify(imgPath) {
       try {
         const j = JSON.parse(m[0]);
         resolve({
-          sku: j.sku && /\d/.test(String(j.sku)) ? String(j.sku).replace(/\D/g, '') : null,
-          terms: typeof j.terms === 'string' ? j.terms.toLowerCase() : null,
+          product: typeof j.product === 'string' ? j.product : '',
+          search_query: typeof j.search_query === 'string' ? j.search_query.toLowerCase() : null,
+          core_query: typeof j.core_query === 'string' ? j.core_query.toLowerCase() : null,
         });
       } catch (e) { resolve({ error: 'bad-json', raw: m[0].slice(0, 400) }); }
     });
