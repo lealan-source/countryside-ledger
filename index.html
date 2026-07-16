@@ -1192,7 +1192,14 @@ async function identifyViaApi(key, file){
     }),
   }, 60000);
   if (res.status === 401 || res.status === 403) throw new Error('key');
-  if (!res.ok) throw new Error('api');
+  if (!res.ok){
+    let msg = '';
+    try{ msg = (await res.json()).error.message || ''; }catch(e){}
+    console.warn('photo API error', res.status, msg);
+    if (/credit balance/i.test(msg)) throw new Error('credit');
+    if (res.status === 429) throw new Error('rate');
+    throw new Error('api:' + res.status + ':' + msg.slice(0, 60));
+  }
   const j = await res.json();
   const text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
   const m = text.match(/\{[\s\S]*\}/);
@@ -1254,6 +1261,10 @@ async function handlePhoto(file){
     const code = String(err && err.message);
     if (code === 'no-engine') toast(window.matchMedia('(min-width:1024px)').matches ? 'OPEN THE LEDGER FROM ITS SHORTCUT, OR ADD AN API KEY UNDER “PRICE LISTS”' : 'ADD AN API KEY UNDER “PRICE LISTS” TO SEARCH BY PHOTO', true);
     else if (code === 'key') toast('API KEY REJECTED — CHECK IT UNDER “PRICE LISTS”', true);
+    else if (code === 'credit') toast('THE API ACCOUNT HAS NO CREDIT — ADD $5 AT CONSOLE.ANTHROPIC.COM', true);
+    else if (code === 'rate') toast('TOO MANY PHOTOS AT ONCE — WAIT A MINUTE AND TRY AGAIN', true);
+    else if (code === 'bad-image') toast('COULDN’T DECODE THAT PHOTO — SHOOT IT WITH THE CAMERA INSTEAD', true);
+    else if (code.startsWith('api:')) toast('CLAUDE API ERROR — ' + code.slice(4), true);
     else if (code === 'auth') toast('CLAUDE ISN’T SIGNED IN ON THE PC — RUN THE LOGIN ONCE', true);
     else toast('COULDN’T READ THAT PHOTO — TRY AGAIN', true);
   } finally {
