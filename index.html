@@ -192,6 +192,27 @@ body[data-view="ticket"] .results-page{display:none}
 .t-empty .s{font-family:var(--serif);font-style:italic;font-size:13px;color:var(--ink-soft)}
 
 /* ============================================================
+   ORDER SHEETS
+   ============================================================ */
+.orders-page{display:none;padding:0 16px 22px}
+body[data-view="orders"] .orders-page{display:block}
+body[data-view="orders"] .results{display:none}
+body[data-view="orders"] .ticket-page{display:none}
+body[data-view="orders"] .hdr-bar{display:flex}
+body[data-view="orders"] .hdr-mobile{display:none}
+body[data-view="orders"] .toolbar{display:none}
+.o-send{width:100%;height:48px;margin-top:16px;font-family:var(--display);font-size:13px;letter-spacing:.16em;cursor:pointer}
+.o-row{display:flex;gap:10px;align-items:center;padding:var(--row-pad) 2px;border-bottom:1px solid var(--line)}
+.qty{display:flex;align-items:center;border:1px solid var(--rule);background:var(--ticket);flex:none}
+.qty button{width:32px;height:34px;background:none;border:none;font-size:16px;cursor:pointer;color:var(--ink);padding:0}
+.qty .n{width:28px;text-align:center;font-size:13px}
+.o-total{width:64px;text-align:right;font-size:13px;font-weight:700;flex:none}
+.o-del{background:none;border:none;color:var(--ink-soft);font-size:13px;cursor:pointer;padding:4px 6px;flex:none}
+.o-actions{display:flex;gap:10px}
+.o-actions .btn-more{flex:1}
+.t-add{font-family:var(--display);font-size:10px;letter-spacing:.14em;border:1px solid var(--rule);background:var(--ticket);color:var(--ink);padding:4px 8px 3px;cursor:pointer;margin-top:6px}
+.t-add:active{background:var(--board-deep)}
+/* ============================================================
    DRAWER — price lists
    ============================================================ */
 .drawer-wrap{position:fixed;inset:0;z-index:60;display:none}
@@ -294,6 +315,11 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
   .stamp{font-size:12px}
   .t-actions button{font-size:12px}
   .t-foot{margin-top:14px}
+  body[data-view="orders"] .ticket-page{display:block}
+  body[data-view="orders"] .toolbar,body[data-view="orders"] .hdr-mobile{display:none}
+  body[data-view="orders"] .toolbar{display:flex}
+  body[data-view="orders"] .hdr-bar{display:none}
+  .orders-page{padding:6px 22px 22px}
 }
 </style>
 </head>
@@ -343,11 +369,13 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
     </div>
     <div class="tip">Tip — shoot the shelf tag, not the bag.</div>
     <button class="lists-link" id="btnDrawer">Price lists ›</button>
+    <button class="lists-link" id="btnOrders">Order sheets ›</button>
   </div>
 
   <main>
     <section class="results-page">
       <div class="results" id="results"></div>
+      <div class="orders-page" id="ordersPage"></div>
     </section>
     <aside class="ticket-page" id="ticketPage"></aside>
   </main>
@@ -442,17 +470,18 @@ const state = {
   hidden:[],
   thumbs:'show', density:'comfortable',
   ticketNo:847,
+  orders:{},
 };
 try{
   const saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
-  for (const k of ['vendorOrder','hidden','thumbs','density','ticketNo']){
+  for (const k of ['vendorOrder','hidden','thumbs','density','ticketNo','orders']){
     if (saved[k] !== undefined) state[k] = saved[k];
   }
 }catch(e){/* localStorage unavailable — session-only prefs */}
 function persist(){
   try{
-    const {vendorOrder, hidden, thumbs, density, ticketNo} = state;
-    localStorage.setItem(LS_KEY, JSON.stringify({vendorOrder, hidden, thumbs, density, ticketNo}));
+    const {vendorOrder, hidden, thumbs, density, ticketNo, orders} = state;
+    localStorage.setItem(LS_KEY, JSON.stringify({vendorOrder, hidden, thumbs, density, ticketNo, orders}));
   }catch(e){}
 }
 
@@ -728,6 +757,7 @@ function renderTicket(){
       <div style="min-width:0">
         <span class="v-tag" style="background:${vend.color};display:inline-block">${vend.name}</span>
         <div class="sub">${sub}</div>
+        <button class="t-add" data-add="${esc(key(it))}">+ ADD TO ORDER</button>
       </div>`;
     const priceCol = `<div class="t-price">${price}</div>`;
     rowsHTML += (best && r === best)
@@ -834,9 +864,11 @@ function openModal(k){
     </div>
     <div class="m-actions">
       <button class="btn-pick" id="btnPick">PICK — COMPARE VENDORS</button>
+      <button class="btn-outline" id="btnAddOrder" style="width:100%;height:44px;margin-top:8px;font-family:var(--display);font-size:12.5px;letter-spacing:.12em;cursor:pointer">ADD TO ${vend.name} ORDER</button>
     </div>`;
   $('#modalWrap').classList.add('open');
   $('#btnPick').addEventListener('click', () => { closeModal(); openTicket(k, 'modal'); });
+  $('#btnAddOrder').addEventListener('click', () => addToOrder(it.v, k));
 }
 function closeModal(){ $('#modalWrap').classList.remove('open'); }
 $('#modalWrap').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target.classList.contains('scrim')) closeModal(); });
@@ -913,6 +945,161 @@ $('#btnDrawer').addEventListener('click', openDrawer);
    Matches the filename against the real catalog; the real
    matcher would POST the image to a vision endpoint here.
    ============================================================ */
+/* ============================================================
+   ORDER SHEETS — one per vendor, kept on this device.
+   Add items from a comparison ticket (or the item modal) while
+   walking inventory; send/copy the sheets as text when done.
+   ============================================================ */
+function ordersTotalLines(){
+  return Object.values(state.orders || {}).reduce((a, s) => a + s.length, 0);
+}
+function updateOrdersLink(){
+  const n = ordersTotalLines();
+  const b = $('#btnOrders');
+  if (b) b.textContent = 'Order sheets' + (n ? ' (' + n + ')' : '') + ' ›';
+}
+function addToOrder(v, k){
+  const sheet = state.orders[v] || (state.orders[v] = []);
+  const e = sheet.find(x => x.k === k);
+  if (e) e.qty += 1; else sheet.push({k, qty: 1});
+  persist(); updateOrdersLink();
+  if (document.body.dataset.view === 'orders') renderOrders();
+  const qty = e ? e.qty : 1;
+  const it = BY_KEY.get(k);
+  toast(`ON THE ${VENDORS[v].name} SHEET — ${qty} × ${it ? it.name.toUpperCase().slice(0, 26) : ''}`);
+}
+function setQty(v, k, delta){
+  const sheet = state.orders[v] || [];
+  const i = sheet.findIndex(x => x.k === k);
+  if (i < 0) return;
+  sheet[i].qty += delta;
+  if (sheet[i].qty <= 0) sheet.splice(i, 1);
+  persist(); updateOrdersLink(); renderOrders();
+}
+function sheetLines(v){
+  return (state.orders[v] || []).map(e => ({...e, it: BY_KEY.get(e.k)}));
+}
+function sheetTotal(v){
+  return sheetLines(v).reduce((a, l) => a + (l.it ? l.it.price * l.qty : 0), 0);
+}
+function sheetText(v){
+  const lines = sheetLines(v);
+  if (!lines.length) return '';
+  const rows = lines.map(l => l.it
+    ? `#${l.it.sku}  ${l.it.name} · ${l.it.pack || 'each'} · ${l.qty} × ${money(l.it.price)} = ${money(l.it.price * l.qty)}`
+    : `#${l.k.split(':')[1]}  (no longer in the price list) · ${l.qty}`);
+  return `${VENDORS[v].name} — ${lines.length} line${lines.length === 1 ? '' : 's'} · ${money(sheetTotal(v))}\n` + rows.join('\n');
+}
+function allSheetsText(){
+  const parts = state.vendorOrder.map(sheetText).filter(Boolean);
+  return `COUNTRYSIDE MARKET — ORDER SHEETS — ${todayLabel()}\n\n` + parts.join('\n\n');
+}
+function copyText(t, okMsg){
+  const done = () => toast(okMsg);
+  const fail = () => toast('COULDN’T COPY — CLIPBOARD BLOCKED', true);
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(done, () => fallbackCopy(t) ? done() : fail());
+  } else {
+    fallbackCopy(t) ? done() : fail();
+  }
+}
+function renderOrders(){
+  const el = $('#ordersPage');
+  const n = ordersTotalLines();
+  $('#barNo').textContent = n ? n + ' LINES' : '————';
+  if (!n){
+    el.innerHTML = `
+      <div class="state">
+        <div class="wheat"></div>
+        <div class="h">NO ORDERS YET</div>
+        <div class="s">Shoot or search an item, open its ticket,<br>and tap + ADD TO ORDER under a vendor.</div>
+      </div>`;
+    return;
+  }
+  let html = `
+    <button class="btn-ink o-send" data-sendall>${navigator.share ? 'SEND SHEETS →' : 'COPY ALL SHEETS'}</button>
+    <div class="t-note" style="margin:10px 0 2px">${navigator.share
+      ? 'Sends as text — share it to your email or notes, then enter each order on the vendor’s site from the PC.'
+      : 'Copies as text — paste it anywhere, then enter each order on the vendor’s site.'}</div>`;
+  for (const v of state.vendorOrder){
+    const lines = sheetLines(v);
+    if (!lines.length) continue;
+    const vend = VENDORS[v];
+    html += `
+      <div class="v-head">
+        <span class="v-tag" style="background:${vend.color}">${vend.name}</span>
+        <span class="r"></span>
+        <span class="v-count">${lines.length} line${lines.length === 1 ? '' : 's'} · <span class="mono">${money(sheetTotal(v))}</span></span>
+      </div>`;
+    for (const l of lines){
+      if (!l.it){
+        html += `
+          <div class="o-row">
+            <span class="r-main">
+              <span class="r-name" style="display:block">#${esc(l.k.split(':')[1])}</span>
+              <span class="r-meta" style="display:block">no longer in the price list</span>
+            </span>
+            <button class="o-del" data-del="${esc(l.k)}" data-v="${v}" aria-label="Remove">✕</button>
+          </div>`;
+        continue;
+      }
+      html += `
+        <div class="o-row">
+          ${thumbHTML(l.it)}
+          <span class="r-main">
+            <span class="r-name" style="display:block">${esc(l.it.name)}</span>
+            <span class="r-meta" style="display:block">#${esc(l.it.sku)} · ${esc(l.it.pack || 'each')} · <span class="mono">${money(l.it.price)}</span></span>
+          </span>
+          <span class="qty">
+            <button data-dec="${esc(l.k)}" data-v="${v}" aria-label="Less">−</button>
+            <span class="n mono">${l.qty}</span>
+            <button data-inc="${esc(l.k)}" data-v="${v}" aria-label="More">+</button>
+          </span>
+          <span class="o-total mono">${money(l.it.price * l.qty)}</span>
+          <button class="o-del" data-del="${esc(l.k)}" data-v="${v}" aria-label="Remove">✕</button>
+        </div>`;
+    }
+    html += `
+      <div class="o-actions">
+        <button class="btn-more" style="margin-top:10px;height:38px" data-copy="${v}">COPY ${vend.name} SHEET</button>
+        <button class="btn-more" style="margin-top:10px;height:38px;flex:0 0 84px" data-clear="${v}">CLEAR</button>
+      </div>`;
+  }
+  el.innerHTML = html;
+}
+function openOrders(){
+  renderOrders();
+  document.body.dataset.view = 'orders';
+  window.scrollTo(0, 0);
+}
+$('#btnOrders').addEventListener('click', openOrders);
+$('#ordersPage').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.inc) setQty(b.dataset.v, b.dataset.inc, 1);
+  else if (b.dataset.dec) setQty(b.dataset.v, b.dataset.dec, -1);
+  else if (b.dataset.del) setQty(b.dataset.v, b.dataset.del, -1e9);
+  else if (b.dataset.copy) copyText(sheetText(b.dataset.copy), VENDORS[b.dataset.copy].name + ' SHEET COPIED');
+  else if (b.dataset.clear){
+    if (!confirm('Clear the ' + VENDORS[b.dataset.clear].label + ' sheet?')) return;
+    state.orders[b.dataset.clear] = [];
+    persist(); updateOrdersLink(); renderOrders();
+    toast(VENDORS[b.dataset.clear].name + ' SHEET CLEARED');
+  }
+  else if (b.hasAttribute('data-sendall')){
+    const t = allSheetsText();
+    if (navigator.share){
+      navigator.share({title: 'Countryside Market order sheets', text: t}).catch(() => {});
+    } else {
+      copyText(t, 'ALL SHEETS COPIED — PASTE INTO AN EMAIL OR NOTE');
+    }
+  }
+});
+$('#ticketPage').addEventListener('click', e => {
+  const b = e.target.closest('[data-add]');
+  if (b) addToOrder(b.dataset.add.split(':')[0], b.dataset.add);
+});
+
 /* Photo engines, tried in order:
    1. local bridge on this PC (free, uses the store's Claude subscription)
    2. the office PC's bridge over its Tailscale address (phone in the aisles, PC on)
@@ -1139,6 +1326,7 @@ window.addEventListener('keydown', e => {
   document.body.classList.toggle('no-thumbs', state.thumbs === 'hide');
   document.documentElement.style.setProperty('--row-pad', state.density === 'compact' ? '7px' : '12px');
   renderTicket();
+  updateOrdersLink();
   loadCatalog();
 
   // installable app: offline shell via service worker (https / localhost only)
