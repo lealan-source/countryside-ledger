@@ -514,6 +514,8 @@ const shelfLine = it => {
 };
 const stockNote = it => it.stock === 'out' ? ' · <span class="oos">OUT OF STOCK</span>'
   : it.stock === 'closeout' ? ' · <span class="oos">CLOSEOUT</span>' : '';
+// prepacked items price by the piece; bulk stays by the pound
+const perPiece = it => (!it.bulk && it.units >= 1 && it.price) ? it.price / it.units : null;
 
 let toastTimer;
 function toast(msg, err){
@@ -543,7 +545,7 @@ async function loadCatalog(){
       const it = {
         v: data.v[a[0]], sku: String(a[1]), name: a[2], brand: a[3], cat: a[4], pack: a[5],
         lbs: a[6], price: a[7], perLb: a[8], bulk: !!a[9], img: !!a[10], shelf: a[11],
-        stock: a[12] || '', u: a[13] || '', brk: a[14] || null, shelfEst: !!a[15],
+        stock: a[12] || '', u: a[13] || '', brk: a[14] || null, shelfEst: !!a[15], units: a[16] || 0,
       };
       BY_KEY.set(key(it), it);
       return it;
@@ -654,7 +656,11 @@ function rowHTML(r){
         ? `<span class="pack-chip">${esc(('BULK ' + it.pack).toUpperCase()).slice(0, 24)}</span>`
         : esc(it.pack))
     : '';
-  const price = it.perLb
+  const pp = perPiece(it);
+  const price = pp != null
+    ? `<span class="lb" style="display:block">${money(pp)}<small>/ea</small></span>
+       <span class="case" style="display:block">${money(it.price)}${it.units > 1 ? ' · ' + it.units + ' pc' : ''}</span>`
+    : it.perLb
     ? `<span class="lb" style="display:block">${money(it.perLb)}<small>/lb</small></span>
        <span class="case" style="display:block">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</span>`
     : `<span class="lb" style="display:block">${money(it.price)}</span>
@@ -760,7 +766,11 @@ function renderTicket(){
     const sub = r.picked
       ? `<span class="match-name">${esc(it.name)}</span><span class="copyable" data-copy="${esc(it.sku)}" title="Tap to copy">#${esc(it.sku)}</span> · ${esc(it.pack || 'each')}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''} · your pick${stockNote(it)}`
       : `<span class="match-name">${esc(it.name)}</span><span class="copyable" data-copy="${esc(it.sku)}" title="Tap to copy">#${esc(it.sku)}</span> · ${esc(it.pack || 'each')} · match ${r.sim}%${stockNote(it)}`;
-    const price = it.perLb
+    const pp = perPiece(it);
+    const price = pp != null
+      ? `<div class="lb">${money(pp)}<small>/ea</small></div>
+         <div class="case">${money(it.price)}${it.perLb ? ' · ' + money(it.perLb) + '/lb' : ''}</div>`
+      : it.perLb
       ? `<div class="lb">${money(it.perLb)}<small>/lb</small></div>
          <div class="case">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</div>`
       : `<div class="lb">${money(it.price)}</div><div class="case">${esc(it.pack || 'each')}</div>`;
@@ -812,7 +822,10 @@ function copySummary(){
     `Ticket Nº ${t.no} · ${t.date}`,
     ...rows.map(r => {
       const it = r.it;
-      const price = it.perLb
+      const pp = perPiece(it);
+      const price = pp != null
+        ? `${money(pp)}/ea · ${money(it.price)}${it.pack ? ' (' + it.pack + ')' : ''}${it.perLb ? ' · ' + money(it.perLb) + '/lb' : ''}`
+        : it.perLb
         ? `${money(it.perLb)}/lb · ${money(it.price)}${it.lbs ? ' (' + fmtLbs(it.lbs) + ' lb)' : ''}`
         : `${money(it.price)} (${it.pack || 'each'})`;
       const flag = best && r === best ? '  <-- BEST/LB' : '';
@@ -867,6 +880,7 @@ function openModal(k){
       ${gRow('BRAND', it.brand ? esc(it.brand) : '')}
       ${gRow('CATEGORY', it.cat ? esc(it.cat) : '')}
       ${gRow('PACK', esc(it.pack || 'each'))}
+      ${gRow('PER PIECE', perPiece(it) != null ? `<span class="mono"><b>${money(perPiece(it))}</b>/ea</span>` : '')}
       ${gRow('PER LB', it.perLb ? `<span class="mono"><b>${money(it.perLb)}</b>/lb</span>` : '')}
       ${gRow('PRICE', `<span class="mono">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</span>`)}
       ${gRow('QTY BREAK', it.brk ? '<span class="mono">' + it.brk[0] + '+ @ ' + money(it.brk[1]) + '</span>' : '')}

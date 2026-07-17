@@ -15,8 +15,10 @@ function parsePack(s) {
   if (!s) return null;
   s = String(s).toLowerCase().replace(/½/g, '.5').replace(/¼/g, '.25').replace(/¾/g, '.75');
   let m, last = null;
+  const re0 = /(\d+)\s*\/\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*(lbs?|oz)\b/g;
+  while ((m = re0.exec(s))) last = { mult: +m[1], size: +m[2] * +m[3], unit: m[4] };
   const re1 = /(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*(lbs?|oz|#)\b/g;
-  while ((m = re1.exec(s))) last = { mult: +m[1] * +m[2], size: +m[3], unit: m[4] };
+  if (!last) while ((m = re1.exec(s))) last = { mult: +m[1] * +m[2], size: +m[3], unit: m[4] };
   if (!last) {
     const re2 = /(\d+(?:\.\d+)?)\s*[\/x]\s*(\d+(?:\.\d+)?)\s*(lbs?|oz|#)/g;
     while ((m = re2.exec(s))) last = { mult: +m[1], size: +m[2], unit: m[3] };
@@ -39,6 +41,12 @@ function packLabel(s) {
 }
 const clean = s => String(s).replace(/\s+/g, ' ').trim();
 const num = x => { const n = typeof x === 'number' ? x : parseFloat(String(x).replace(/[$,]/g, '')); return isFinite(n) ? n : null; };
+const ctUnits = s => {
+  const m2 = String(s).match(/(\d+)\s*\/\s*(\d+)\s*ct/i);
+  if (m2) return +m2[1] * +m2[2];
+  const m1 = String(s).match(/(\d+)\s*ct/i);
+  return m1 ? +m1[1] : null;
+};
 const upcDigits = x => { const d = String(x || '').replace(/\D/g, '').replace(/^0+/, ''); return d.length >= 6 ? d : null; };
 
 // Pack-class rule (per the store's real usage):
@@ -91,6 +99,7 @@ const offers = [];
       shelfDays: null, stock: '',
       upcs: [upcDigits(r[11]), upcDigits(r[12])].filter(Boolean),
       brk: brkQty && brkPrice ? [brkQty, brkPrice] : null,
+      units: pk ? pk.mult : (ctUnits(name) || 0),
     });
   }
 }
@@ -130,6 +139,7 @@ const offers = [];
       pack: packLabel(name) || (lbs ? lbs + ' lb' : ''),
       lbs, price, perLb,
       bulk: isBulk({ pack: pk || (q1IsPounds ? { total: q1, unit: q1, mult: 1 } : null), cat, byThePound: false, count: !pk && !q1IsPounds ? q1 : null }),
+      units: pk ? pk.mult : (ctUnits(name) || (!q1IsPounds && q1 ? q1 : 0)),
       shelfDays: null, stock: '', upcs: [], brk: null,
     };
     offers.push(lastOffer);
@@ -162,6 +172,7 @@ const offers = [];
       v: 'wc', sku, name, brand: clean(r[2]), cat,
       pack, lbs, price, perLb,
       bulk: isBulk({ pack: pk, cat, byThePound: false }),
+      units: pk ? pk.mult : (ctUnits(pack) || 0),
       shelfDays: null, stock: '', upcs: [], brk: null,
     });
   }
@@ -193,6 +204,7 @@ const offers = [];
       pack: w && uom ? w + ' ' + uom.toLowerCase().replace('fo', 'fl oz') : (packLabel(name) || 'each'),
       lbs, price: each, perLb: lbs ? +(each / lbs).toFixed(4) : null,
       bulk: isBulk({ pack: pk, cat: '', byThePound: false }),
+      units: 1,  // Frontier prices are per each
       shelfDays: num(r[19]) || null, stock,
       upcs: [upcDigits(r[0])].filter(Boolean), brk: null,
     });
@@ -231,6 +243,7 @@ const offers = [];
           pack, lbs, price,
           perLb: lbs ? +(price / lbs).toFixed(4) : null,
           bulk: false,
+          units: pk ? pk.mult : (ctUnits(pack) || 0),
           shelfDays: null, stock: '',
           upcs: [upcDigits(r[1]), upcDigits(r[2])].filter(Boolean),
           brk: null,
@@ -396,7 +409,7 @@ const V = ['dv', 'gw', 'wc', 'fr', 'dw'];
 const items = offers.map(o => [
   V.indexOf(o.v), o.sku, o.name, o.brand, o.cat, o.pack,
   o.lbs, o.price, o.perLb, o.bulk ? 1 : 0, o.img ? 1 : 0, o.shelfDays,
-  o.stock, o.upcs.join('|'), o.brk || 0, o.shelfEst || 0,
+  o.stock, o.upcs.join('|'), o.brk || 0, o.shelfEst || 0, o.units || 0,
 ]);
 fs.mkdirSync(PROJ + '/data', { recursive: true });
 fs.writeFileSync(PROJ + '/data/catalog.json', JSON.stringify({ v: V, generated: '2026-07-16', items }));
