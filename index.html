@@ -206,6 +206,8 @@ body[data-view="orders"] .hdr-bar{display:flex}
 body[data-view="orders"] .hdr-mobile{display:none}
 body[data-view="orders"] .toolbar{display:none}
 .o-send{width:100%;height:48px;margin-top:16px;font-family:var(--display);font-size:13px;letter-spacing:.16em;cursor:pointer}
+.o-inbox{margin-top:16px;height:44px;border-color:var(--best);color:var(--best)}
+.linkish{background:none;border:none;font:inherit;font-style:italic;color:#89231F;text-decoration:underline;cursor:pointer;padding:0}
 .o-row{display:flex;gap:10px;align-items:center;padding:var(--row-pad) 2px;border-bottom:1px solid var(--line)}
 .qty{display:flex;align-items:center;border:1px solid var(--rule);background:var(--ticket);flex:none}
 .qty button{width:32px;height:34px;background:none;border:none;font-size:16px;cursor:pointer;color:var(--ink);padding:0}
@@ -410,6 +412,9 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
     </div>
     <div class="d-sec">PHOTO SEARCH</div>
     <div class="d-field"><label for="cfgKey">API KEY</label><input id="cfgKey" type="password" placeholder="sk-ant-… (optional)" autocomplete="off"></div>
+    <div class="d-sec">SEND BETWEEN DEVICES</div>
+    <div class="d-field"><label for="cfgGh">GITHUB TOKEN</label><input id="cfgGh" type="password" placeholder="github_pat_… (same on both devices)" autocomplete="off"></div>
+    <div class="d-note">Lets order sheets travel between your phone and PC through your private mailbox. Create ONE token at github.com → Settings → Developer settings → Fine-grained tokens: repository access ONLY countryside-orders, permission Contents read &amp; write — then paste the same token here on both devices.</div>
     <div class="d-note">With an API key saved (console.anthropic.com), photos are answered in a few seconds on any device — about a quarter of a cent each. Without one, the office PC falls back to the store's Claude sign-in (free, but slower). The key stays on this device only.</div>
     <div class="d-note">To update prices, drop the new sheet in the Price Sheets folder and re-import — order and hidden vendors are remembered on this device.</div>
   </div>
@@ -959,9 +964,11 @@ function openDrawer(){
   renderDrawer();
   const cfg = photoCfg();
   $('#cfgKey').value = cfg.key || '';
+  $('#cfgGh').value = cfg.gh || '';
   $('#drawerWrap').classList.add('open');
 }
 $('#cfgKey').addEventListener('change', e => savePhotoCfg({key: e.target.value.trim()}));
+$('#cfgGh').addEventListener('change', e => { savePhotoCfg({gh: e.target.value.trim()}); checkOrdersInbox(); });
 function closeDrawer(){ $('#drawerWrap').classList.remove('open'); }
 $('#btnDrawer').addEventListener('click', openDrawer);
 
@@ -1034,6 +1041,7 @@ function renderOrders(){
   $('#barNo').textContent = n ? n + ' LINES' : '————';
   if (!n){
     el.innerHTML = `
+      ${INBOX.length ? `<button class="btn-more o-inbox" data-import>IMPORT ${INBOX.length} SHEET${INBOX.length === 1 ? '' : 'S'} FROM YOUR OTHER DEVICE</button>` : ''}
       <div class="state">
         <div class="wheat"></div>
         <div class="h">NO ORDERS YET</div>
@@ -1041,9 +1049,13 @@ function renderOrders(){
       </div>`;
     return;
   }
+  const gh = !!photoCfg().gh;
   let html = `
-    <button class="btn-ink o-send" data-sendall>${navigator.share ? 'SEND SHEETS →' : 'COPY ALL SHEETS'}</button>
-    <div class="t-note" style="margin:10px 0 2px">${navigator.share
+    ${INBOX.length ? `<button class="btn-more o-inbox" data-import>IMPORT ${INBOX.length} SHEET${INBOX.length === 1 ? '' : 'S'} FROM YOUR OTHER DEVICE</button>` : ''}
+    <button class="btn-ink o-send" data-sendall>${gh ? 'SEND TO MY OTHER DEVICE →' : (navigator.share ? 'SEND SHEETS →' : 'COPY ALL SHEETS')}</button>
+    <div class="t-note" style="margin:10px 0 2px">${gh
+      ? 'Drops the sheets in your private mailbox — the other device imports them when you open it.' + (navigator.share || navigator.clipboard ? ' <button class="linkish" data-sharetext>Share as text instead</button>' : '')
+      : navigator.share
       ? 'Sends as text — share it to your email or notes, then enter each order on the vendor’s site from the PC.'
       : 'Copies as text — paste it anywhere, then enter each order on the vendor’s site.'}</div>`;
   for (const v of state.vendorOrder){
@@ -1111,7 +1123,14 @@ $('#ordersPage').addEventListener('click', e => {
     persist(); updateOrdersLink(); renderOrders();
     toast(VENDORS[b.dataset.clear].name + ' SHEET CLEARED');
   }
+  else if (b.hasAttribute('data-import')) importInbox();
+  else if (b.hasAttribute('data-sharetext')){
+    const t = allSheetsText();
+    if (navigator.share) navigator.share({title: 'Countryside Market order sheets', text: t}).catch(() => {});
+    else copyText(t, 'ALL SHEETS COPIED — PASTE INTO AN EMAIL OR NOTE');
+  }
   else if (b.hasAttribute('data-sendall')){
+    if (photoCfg().gh){ sendSheetsViaGithub(); return; }
     const t = allSheetsText();
     if (navigator.share){
       navigator.share({title: 'Countryside Market order sheets', text: t}).catch(() => {});
@@ -1133,6 +1152,106 @@ document.addEventListener('click', e => {
   const val = c.dataset.copy || c.textContent.trim();
   copyText(val, 'COPIED — ' + val);
 }, true);
+
+/* ============================================================
+   DEVICE-TO-DEVICE SEND — private GitHub repo as the mailbox.
+   The phone PUTs sheets into countryside-orders/inbox/; the other
+   device lists the inbox on foreground, imports, and deletes.
+   One fine-grained token (Contents R/W on that repo only), pasted
+   on both devices, stored in localStorage like the API key.
+   ============================================================ */
+const GH_INBOX = 'https://api.github.com/repos/lealan-source/countryside-orders/contents/inbox';
+let INBOX = [];
+let inboxToastShown = 0;
+
+function deviceId(){
+  try{
+    let id = localStorage.getItem('ledgerDeviceId');
+    if (!id){ id = Math.random().toString(16).slice(2, 10); localStorage.setItem('ledgerDeviceId', id); }
+    return id;
+  }catch(e){ return 'nodevice'; }
+}
+function ghHeaders(t){
+  return { 'Authorization': 'Bearer ' + t, 'Accept': 'application/vnd.github+json' };
+}
+const b64enc = s => btoa(unescape(encodeURIComponent(s)));
+const b64dec = s => decodeURIComponent(escape(atob(String(s).replace(/\s/g, ''))));
+
+async function sendSheetsViaGithub(){
+  const t = photoCfg().gh;
+  if (!t || !ordersTotalLines()) return;
+  const payload = {
+    device: deviceId(),
+    sent: new Date().toISOString(),
+    orders: state.orders,
+    text: allSheetsText(),
+  };
+  try{
+    const res = await fetchTimeout(GH_INBOX + '/orders-' + Date.now() + '-' + deviceId() + '.json', {
+      method: 'PUT',
+      headers: ghHeaders(t),
+      body: JSON.stringify({ message: 'Order sheets from ' + deviceId(), content: b64enc(JSON.stringify(payload, null, 1)) }),
+    }, 25000);
+    if (res.status === 401 || res.status === 403) return toast('GITHUB TOKEN REJECTED — CHECK IT UNDER “PRICE LISTS”', true);
+    if (res.status === 404) return toast('MAILBOX NOT FOUND — CREATE THE countryside-orders REPO FIRST', true);
+    if (!res.ok) return toast('COULDN’T SEND — TRY AGAIN IN A MINUTE', true);
+    toast('SENT — OPEN THE LEDGER ON YOUR OTHER DEVICE TO IMPORT');
+  }catch(e){
+    toast('COULDN’T SEND — NO CONNECTION?', true);
+  }
+}
+async function checkOrdersInbox(){
+  const t = photoCfg().gh;
+  if (!t) return;
+  try{
+    const res = await fetchTimeout(GH_INBOX, { headers: ghHeaders(t) }, 15000);
+    if (res.status === 404){ INBOX = []; return; }   // empty inbox (or repo not made yet)
+    if (!res.ok) return;
+    const files = await res.json();
+    INBOX = (Array.isArray(files) ? files : []).filter(f =>
+      f.name.endsWith('.json') && !f.name.includes('-' + deviceId() + '.json'));
+    if (INBOX.length){
+      if (document.body.dataset.view === 'orders') renderOrders();
+      else if (inboxToastShown !== INBOX.length){
+        inboxToastShown = INBOX.length;
+        toast('ORDER SHEETS FROM YOUR OTHER DEVICE — OPEN “ORDER SHEETS ›”');
+      }
+    }
+  }catch(e){/* offline — check again next foreground */}
+}
+async function importInbox(){
+  const t = photoCfg().gh;
+  if (!t || !INBOX.length) return;
+  let added = 0, sheets = 0;
+  for (const f of INBOX){
+    try{
+      const res = await fetchTimeout(GH_INBOX + '/' + encodeURIComponent(f.name), { headers: ghHeaders(t) }, 20000);
+      if (!res.ok) continue;
+      const j = await res.json();
+      const payload = JSON.parse(b64dec(j.content));
+      for (const [v, lines] of Object.entries(payload.orders || {})){
+        if (!VENDORS[v] || !Array.isArray(lines)) continue;
+        const sheet = state.orders[v] || (state.orders[v] = []);
+        for (const l of lines){
+          if (!l || !l.k || !(l.qty > 0)) continue;
+          const e = sheet.find(x => x.k === l.k);
+          if (e) e.qty += l.qty; else sheet.push({ k: l.k, qty: l.qty });
+          added++;
+        }
+      }
+      await fetchTimeout(GH_INBOX + '/' + encodeURIComponent(f.name), {
+        method: 'DELETE',
+        headers: ghHeaders(t),
+        body: JSON.stringify({ message: 'imported on ' + deviceId(), sha: j.sha }),
+      }, 20000);
+      sheets++;
+    }catch(e){/* leave the file for the next try */}
+  }
+  INBOX = [];
+  inboxToastShown = 0;
+  persist(); updateOrdersLink(); renderOrders();
+  toast(sheets ? `IMPORTED ${added} LINE${added === 1 ? '' : 'S'} FROM YOUR OTHER DEVICE` : 'IMPORT FAILED — TRY AGAIN', !sheets);
+}
 
 /* Photo engines, tried in order:
    1. local bridge on this PC (free, uses the store's Claude subscription)
@@ -1386,6 +1505,8 @@ window.addEventListener('keydown', e => {
   document.documentElement.style.setProperty('--row-pad', state.density === 'compact' ? '7px' : '12px');
   renderTicket();
   updateOrdersLink();
+  checkOrdersInbox();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkOrdersInbox(); });
   loadCatalog();
 
   // installable app: offline shell via service worker (https / localhost only)
