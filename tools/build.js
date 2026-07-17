@@ -199,6 +199,49 @@ const offers = [];
   }
 }
 
+/* ---------- Denver Wholesale (built from invoices, not a price list) ----------
+   Each invoice's Items sheet carries the full item spec + case price.
+   Dedupe by DWF ID#; the newest invoice date wins the price.
+   Everything is prepacked — Denver Wholesale carries no bulk. */
+{
+  const dir = SHEETS + '/Denver Wholesale';
+  if (fs.existsSync(dir)) {
+    const byId = new Map();
+    for (const f of fs.readdirSync(dir).filter(x => /\.xlsx?$/i.test(x))) {
+      const wb = XLSX.readFile(path.join(dir, f));
+      const inv = XLSX.utils.sheet_to_json(wb.Sheets['Invoice Summary'] || {}, { header: 1, raw: true, defval: '' });
+      const dateRow = inv.find(r => String(r[0]).toLowerCase() === 'invoice date');
+      const date = dateRow ? String(dateRow[1]) : '';
+      const its = XLSX.utils.sheet_to_json(wb.Sheets['Items'] || {}, { header: 1, raw: true, defval: '' });
+      for (const r of its.slice(1)) {
+        const sku = String(r[0]).trim();
+        if (!sku || !/\d/.test(sku)) continue;
+        const name = clean(r[3]);
+        const price = num(r[14]);
+        if (!name || price == null) continue;
+        const prev = byId.get(sku);
+        if (prev && prev.date > date) continue;
+        const pack = clean(r[4]);
+        const pk = parsePack(pack) || parsePack(name);
+        const lbs = pk ? pk.total : null;
+        const temp = String(r[12]).trim().toUpperCase();
+        const cat = temp === 'F' ? 'Frozen' : temp === 'R' ? 'Refrigerated' : 'Grocery';
+        byId.set(sku, { date, offer: {
+          v: 'dw', sku, name, brand: '', cat,
+          pack, lbs, price,
+          perLb: lbs ? +(price / lbs).toFixed(4) : null,
+          bulk: false,
+          shelfDays: null, stock: '',
+          upcs: [upcDigits(r[1]), upcDigits(r[2])].filter(Boolean),
+          brk: null,
+          img: false,
+        }});
+      }
+    }
+    for (const { offer } of byId.values()) offers.push(offer);
+  }
+}
+
 function titleCase(s) {
   return s.toLowerCase().replace(/(^|[\s/&-])[a-z]/g, c => c.toUpperCase());
 }
@@ -287,6 +330,8 @@ const SHELF_RULES = [
   [/dry milk|milk powder|egg powder|buttermilk powder|whey|egg replacer/i, 365],
   [/peppercorn|whole (clove|allspice|nutmeg)|cinnamon stick/i, 1095],
   [/spice|seasoning|powder\b|paprika|cumin|oregano|basil|thyme|parsley|chili powder|cinnamon|ginger|turmeric|\bherbs?\b|garlic|onion flake|\bleaf\b|\broot\b/i, 1095],
+  // storage-temp fallbacks (Denver Wholesale cat = Frozen/Refrigerated)
+  [/refrigerated/i, 75],
 ];
 function estimateShelf(text) {
   if (NO_SHELF.test(text)) return null;
@@ -318,7 +363,7 @@ console.log(`shelf life — vendor: ${shelfFromVendor}, rules: ${shelfFromRules}
 }
 
 /* ---------- image index: vendor:sku → file path ---------- */
-const IMG_DIRS = { 'Dutch Valley': 'dv', 'Gateway': 'gw', 'Walnut Creek': 'wc', 'Frontier': 'fr' };
+const IMG_DIRS = { 'Dutch Valley': 'dv', 'Gateway': 'gw', 'Walnut Creek': 'wc', 'Frontier': 'fr', 'Denver Wholesale': 'dw' };
 const imgIndex = new Map();
 let imgTotal = 0;
 function walk(dir, v) {
@@ -347,7 +392,7 @@ for (const o of offers) {
   if (src) { matched++; jobs.push({ src, out: `images/${o.v}/${o.sku}.webp` }); }
 }
 
-const V = ['dv', 'gw', 'wc', 'fr'];
+const V = ['dv', 'gw', 'wc', 'fr', 'dw'];
 const items = offers.map(o => [
   V.indexOf(o.v), o.sku, o.name, o.brand, o.cat, o.pack,
   o.lbs, o.price, o.perLb, o.bulk ? 1 : 0, o.img ? 1 : 0, o.shelfDays,

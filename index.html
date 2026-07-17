@@ -31,6 +31,7 @@
   --gw:#275F8F;             /* Gateway — ledger blue */
   --wc:#3B6B35;             /* Walnut Creek — creek green */
   --fr:#6B4A86;             /* Frontier — violet */
+  --dw:#0E6973;             /* Denver Wholesale — teal */
   --best:#89231F;           /* red ink — stamp, best price, OOS */
   --gold:#89231F;           /* gold retires; name kept */
   --cream-ink:#FBF6E8;      /* text on red / on ink */
@@ -456,6 +457,7 @@ const VENDORS = {
   gw:{name:'GATEWAY',      label:'Gateway',      color:'var(--gw)', updated:'Jul 6'},
   wc:{name:'WALNUT CREEK', label:'Walnut Creek', color:'var(--wc)', updated:'Jul 16'},
   fr:{name:'FRONTIER',     label:'Frontier',     color:'var(--fr)', updated:'Jul 16'},
+  dw:{name:'DENVER WHOLESALE', label:'Denver Wholesale', color:'var(--dw)', updated:'Jul 17'},
 };
 let PRICES_REFRESHED = 'Jul 16';
 let ITEMS = [];               // {v,sku,name,brand,cat,pack,lbs,price,perLb,bulk,img,shelf,hay}
@@ -481,6 +483,11 @@ try{
     if (saved[k] !== undefined) state[k] = saved[k];
   }
 }catch(e){/* localStorage unavailable — session-only prefs */}
+// devices that saved settings before a vendor existed: append new vendors
+for (const v of Object.keys(VENDORS)){
+  if (!state.vendorOrder.includes(v)) state.vendorOrder.push(v);
+}
+state.vendorOrder = state.vendorOrder.filter(v => VENDORS[v]);
 function persist(){
   try{
     const {vendorOrder, hidden, thumbs, density, ticketNo, orders} = state;
