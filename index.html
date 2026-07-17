@@ -500,10 +500,8 @@ const imgSrc = it => it.img ? `images/${it.v}/${encodeURIComponent(it.sku)}.webp
 const thumbHTML = it => `<span class="thumb">${it.img ? `<img loading="lazy" decoding="async" src="${imgSrc(it)}" alt="" onerror="this.remove()">` : ''}</span>`;
 const shelfLine = it => {
   if (!it.shelf) return '';
-  if (it.shelf >= 9000) return 'Keeps indefinitely — dry & sealed';
   const t = it.shelfEst ? '~' : '';   // ~ marks a typical value; no ~ means vendor-stated
-  const mo = Math.round(it.shelf / 30.4);
-  return mo >= 24 ? `Keeps ${t}${Math.round(mo / 12)} years` : mo >= 2 ? `Keeps ${t}${mo} months` : `Keeps ${t}${it.shelf} days`;
+  return `Keeps ${t}${Math.min(950, it.shelf)} days`;
 };
 const stockNote = it => it.stock === 'out' ? ' · <span class="oos">OUT OF STOCK</span>'
   : it.stock === 'closeout' ? ' · <span class="oos">CLOSEOUT</span>' : '';
