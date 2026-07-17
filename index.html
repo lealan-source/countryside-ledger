@@ -1390,7 +1390,28 @@ window.addEventListener('keydown', e => {
 
   // installable app: offline shell via service worker (https / localhost only)
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
-    navigator.serviceWorker.register('./sw.js').catch(() => {/* offline support unavailable */});
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      // re-check for a new version every time the app comes to the foreground —
+      // installed apps linger in the background and never reload on their own
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) reg.update().catch(() => {});
+      });
+    }).catch(() => {/* offline support unavailable */});
+    // when a new version takes over, reload once so fresh data shows immediately
+    let refreshed = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshed || !hadController) return;
+      refreshed = true;
+      try{ sessionStorage.setItem('ledgerUpdated', '1'); }catch(e){}
+      location.reload();
+    });
+    try{
+      if (sessionStorage.getItem('ledgerUpdated')){
+        sessionStorage.removeItem('ledgerUpdated');
+        setTimeout(() => toast('LEDGER UPDATED TO THE LATEST'), 800);
+      }
+    }catch(e){}
   }
 })();
 </script>
