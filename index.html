@@ -719,10 +719,11 @@ function ticketRows(picked){
   const rows = [];
   for (const v of state.vendorOrder){
     if (state.hidden.includes(v)) continue;
-    if (v === picked.v){ rows.push({it: picked, picked: true}); continue; }
+    if (v === picked.v){ rows.push({it: picked, picked: true, sim: 100}); continue; }
     const m = closestMatch(picked, v);
     if (m) rows.push({it: m.it, sim: m.sim});
   }
+  rows.sort((a, b) => b.sim - a.sim);  // best match first; the pick counts as 100
   return rows;
 }
 function renderTicket(){
@@ -750,7 +751,7 @@ function renderTicket(){
   for (const r of rows){
     const it = r.it, vend = VENDORS[it.v];
     const sub = r.picked
-      ? `${esc(it.pack || 'each')}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}${stockNote(it)}`
+      ? `<span class="match-name">${esc(it.name)}</span>#${esc(it.sku)} · ${esc(it.pack || 'each')}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''} · your pick${stockNote(it)}`
       : `<span class="match-name">${esc(it.name)}</span>#${esc(it.sku)} · ${esc(it.pack || 'each')} · match ${r.sim}%${stockNote(it)}`;
     const price = it.perLb
       ? `<div class="lb">${money(it.perLb)}<small>/lb</small></div>
