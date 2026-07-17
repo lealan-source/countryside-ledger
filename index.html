@@ -132,6 +132,8 @@ body.no-thumbs .thumb{display:none}
 .r-meta{font-size:11.5px;color:var(--ink-soft);margin-top:2px}
 .pack-chip{display:inline-block;white-space:nowrap;border:1px solid var(--ink-soft);padding:0 4px;font-size:10px;letter-spacing:.06em}
 .oos{color:var(--best);font-weight:700;font-size:10.5px;letter-spacing:.05em}
+.copyable{cursor:copy;text-decoration:underline dotted;text-underline-offset:2px;text-decoration-color:var(--line)}
+.copyable:active{color:var(--best)}
 .r-price{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;flex:none}
 .r-price .lb{font-size:16.5px;font-weight:700;color:var(--ink)}
 .r-price .lb small{font-size:11px;font-weight:400}
@@ -655,7 +657,7 @@ function rowHTML(r){
       ${thumbHTML(it)}
       <span class="r-main">
         <span class="r-name" style="display:block">${esc(it.name)}</span>
-        <span class="r-meta" style="display:block">#${esc(it.sku)} · ${mid}${chip ? ' · ' + chip : ''}${stockNote(it)}</span>
+        <span class="r-meta" style="display:block"><span class="copyable" data-copy="${esc(it.sku)}" title="Tap to copy">#${esc(it.sku)}</span> · ${mid}${chip ? ' · ' + chip : ''}${stockNote(it)}</span>
       </span>
       <span class="r-price">${price}</span>
       <span class="r-conf">
@@ -749,8 +751,8 @@ function renderTicket(){
   for (const r of rows){
     const it = r.it, vend = VENDORS[it.v];
     const sub = r.picked
-      ? `<span class="match-name">${esc(it.name)}</span>#${esc(it.sku)} · ${esc(it.pack || 'each')}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''} · your pick${stockNote(it)}`
-      : `<span class="match-name">${esc(it.name)}</span>#${esc(it.sku)} · ${esc(it.pack || 'each')} · match ${r.sim}%${stockNote(it)}`;
+      ? `<span class="match-name">${esc(it.name)}</span><span class="copyable" data-copy="${esc(it.sku)}" title="Tap to copy">#${esc(it.sku)}</span> · ${esc(it.pack || 'each')}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''} · your pick${stockNote(it)}`
+      : `<span class="match-name">${esc(it.name)}</span><span class="copyable" data-copy="${esc(it.sku)}" title="Tap to copy">#${esc(it.sku)}</span> · ${esc(it.pack || 'each')} · match ${r.sim}%${stockNote(it)}`;
     const price = it.perLb
       ? `<div class="lb">${money(it.perLb)}<small>/lb</small></div>
          <div class="case">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</div>`
@@ -853,7 +855,7 @@ function openModal(k){
     </div>
     <div class="m-img">${it.img ? `<img loading="lazy" src="${imgSrc(it)}" alt="" onerror="this.remove()">` : '<div class="wheat"></div>'}</div>
     <div class="m-grid">
-      ${gRow('ITEM #', '<span class="mono">#' + esc(it.sku) + '</span>')}
+      ${gRow('ITEM #', '<span class="mono copyable" data-copy="' + esc(it.sku) + '" title="Tap to copy">#' + esc(it.sku) + '</span>')}
       ${gRow('VENDOR', `<span class="v-tag" style="background:${vend.color};display:inline-block">${vend.name}</span>`)}
       ${gRow('BRAND', it.brand ? esc(it.brand) : '')}
       ${gRow('CATEGORY', it.cat ? esc(it.cat) : '')}
@@ -1050,7 +1052,7 @@ function renderOrders(){
           ${thumbHTML(l.it)}
           <span class="r-main">
             <span class="r-name" style="display:block">${esc(l.it.name)}</span>
-            <span class="r-meta" style="display:block">#${esc(l.it.sku)} · ${esc(l.it.pack || 'each')} · <span class="mono">${money(l.it.price)}</span></span>
+            <span class="r-meta" style="display:block"><span class="copyable" data-copy="${esc(l.it.sku)}" title="Tap to copy">#${esc(l.it.sku)}</span> · ${esc(l.it.pack || 'each')} · <span class="mono">${money(l.it.price)}</span></span>
           </span>
           <span class="qty">
             <button data-dec="${esc(l.k)}" data-v="${v}" aria-label="Less">−</button>
@@ -1101,6 +1103,15 @@ $('#ticketPage').addEventListener('click', e => {
   const b = e.target.closest('[data-add]');
   if (b) addToOrder(b.dataset.add.split(':')[0], b.dataset.add);
 });
+// tap-to-copy identifiers (capture phase so the row underneath never fires)
+document.addEventListener('click', e => {
+  const c = e.target.closest('.copyable');
+  if (!c) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const val = c.dataset.copy || c.textContent.trim();
+  copyText(val, 'COPIED — ' + val);
+}, true);
 
 /* Photo engines, tried in order:
    1. local bridge on this PC (free, uses the store's Claude subscription)
