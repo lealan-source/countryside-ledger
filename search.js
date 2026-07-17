@@ -38,7 +38,8 @@
   function tokenize(s) {
     s = String(s).toLowerCase()
       .replace(/,(?=\d{3})/g, '')          // 1,000 → 1000
-      .replace(/(\d)\s*#/g, '$1 lb')       // 25# → 25 lb
+            .replace(/(\d)\s*#/g, '$1 lb')       // 25# → 25 lb
+      .replace(/(\d)(lbs?|oz|ct|pk|gal)\b/gi, '$1 $2')  // 16oz → 16 oz
       .replace(/[^a-z0-9.]+/g, ' ')
       .replace(/\.(?!\d)/g, ' ');          // keep decimals, drop other dots
     const raw = s.split(/\s+/).filter(Boolean);
@@ -110,18 +111,30 @@
       const nameSet = new Set(name.words);
       for (const w of tokenize(it.brand || '').words) nameSet.add(w);
       const catSet = new Set(catWords);
+      const headWords = name.words.filter(w => !brandWords.has(w)).slice(0, 2);
       return {
-        nameWords: name.words, all, brandWords, sizes, nameSet, catSet,
+        nameWords: name.words, all, brandWords, sizes, nameSet, catSet, headWords, v: it.v,
         candy: CANDY_SIGNAL.test(text) || /candy/i.test(it.cat || ''),
         care: CARE_SIGNAL.test(text),
         upcs: (it.u ? it.u.split('|') : []).map(u => u.replace(/^0+/, '')),
       };
     });
+    // idf is per-vendor: 'Cereal' being common inside Walnut Creek correctly
+    // deflates its weight there without deflating it for other vendors
     IDF = new Map();
-    for (const m of META) for (const w of m.all) IDF.set(w, (IDF.get(w) || 0) + 1);
-    const N = items.length;
-    for (const [w, df] of IDF) IDF.set(w, 1 + Math.log(N / df));
-    return { items: N };
+    const counts = new Map(), totals = new Map();
+    for (const m of META) {
+      totals.set(m.v, (totals.get(m.v) || 0) + 1);
+      let c = counts.get(m.v);
+      if (!c) counts.set(m.v, c = new Map());
+      for (const w of m.all) c.set(w, (c.get(w) || 0) + 1);
+    }
+    for (const [v, c] of counts) {
+      const nv = totals.get(v), out = new Map();
+      for (const [w, df] of c) out.set(w, 1 + Math.log(nv / df));
+      IDF.set(v, out);
+    }
+    return { items: items.length };
   }
 
   const EMPTY_SET = new Set();
@@ -181,18 +194,21 @@
     const Q = tokenize(q);
     if (!Q.words.length && !Q.sizes.length) return { hits: [], intent: Q.intent };
     const hits = [];
-    const qIdf = Q.words.map(w => IDF.get(w) || 2.5);
-    const idfSum = qIdf.reduce((a, b) => a + b, 0) || 1;
 
     for (let i = 0; i < ITEMS.length; i++) {
       const m = META[i];
-      let got = 0;
+      const vIdf = IDF.get(m.v);
+      let got = 0, idfSum = 0;
       const matchedWords = [];
       for (let k = 0; k < Q.words.length; k++) {
-        const c = creditFor(Q.words[k], m.nameSet, m.catSet);
-        if (c > 0) matchedWords.push(Q.words[k]);
-        got += c * qIdf[k];
+        const w = Q.words[k];
+        const idf = (vIdf && vIdf.get(w)) || 2.5;
+        idfSum += idf;
+        const c = creditFor(w, m.nameSet, m.catSet);
+        if (c > 0) matchedWords.push(w);
+        got += c * idf;
       }
+      if (!idfSum) idfSum = 1;
       let coverage = got / idfSum;
       if (Q.words.length && coverage < 0.66) continue;
       if (!Q.words.length) coverage = 0.7; // size-only query
@@ -206,11 +222,15 @@
       }
       let score = coverage / (1 + 0.035 * noise);
 
-      // size bonus
+      // size agreement: flat bonus (reference-tested value), capped at 1
       if (Q.sizes.length && m.sizes.length) {
         const hit = Q.sizes.some(qs => m.sizes.some(is =>
           qs.unit === is.unit && Math.abs(qs.n - is.n) <= Math.max(0.5, qs.n * 0.1)));
-        if (hit) score = Math.min(1, score * 1.06);
+        if (hit) score = Math.min(1, score + 0.12);
+      }
+      // head-noun bonus: small tie-breaker for the first non-brand name words
+      if (m.headWords.length && Q.words.some(w => m.headWords.includes(w))) {
+        score = Math.min(1, score + 0.06);
       }
 
       // context weighting with the form-word exemption

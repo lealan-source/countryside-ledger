@@ -1110,13 +1110,13 @@ $('#ticketPage').addEventListener('click', e => {
    Settings live in localStorage on each device — never in the repo. */
 const LOCAL_BRIDGE = 'http://127.0.0.1:8474';
 const PHOTO_PROMPT =
-  'This photo is from a bulk-food store: either a shelf tag or a product package. Identify the product. ' +
-  'Ignore ALL barcodes and barcode numbers (they are the store’s own scale-label codes, never catalog numbers). ' +
-  'Ignore per-bag net weight, price, and sell-by dates (they vary bag to bag). ' +
+  'This photo is from a bulk-food store: a shelf tag, a product package, or the store’s own scale label (labels headed “Countryside Market” are always the store’s scale labels). Identify the product. ' +
+  'Ignore ALL barcodes and their digits (store codes, never catalog numbers). Ignore price, sell-by, and per-bag net weight. ' +
   'Reply with ONLY minified JSON, no other text: ' +
   '{"product":"<what it is>","details":"<brand/pack details if visible>",' +
-  '"search_query":"<2 to 5 lowercase words, catalog-style; KEEP variety words that name the product (maple granola, garlic salt); omit colors and marketing words>",' +
-  '"core_query":"<1 or 2 lowercase words, the generic product noun>"}';
+  '"search_query":"<2 to 5 lowercase words, catalog-style. KEEP words that pick a specific product: maple, semi-sweet, decaf, whole, crushed, organic, old fashioned, dark, light. DROP marketing words: natural, premium, fancy, gourmet, deluxe, homestyle. When unsure, keep the word>",' +
+  '"core_query":"<1 or 2 lowercase words, the generic product noun>",' +
+  '"first_ingredients":"<first 1 to 3 items on the ING/ingredients line if visible, comma separated, else empty>"}';
 
 function photoCfg(){
   try{ return JSON.parse(localStorage.getItem('ledgerPhotoCfg') || '{}'); }catch(e){ return {}; }
@@ -1159,6 +1159,9 @@ function normalizeAnswer(j){
   const ans = {
     search: typeof j.search_query === 'string' ? j.search_query : null,
     core: typeof j.core_query === 'string' ? j.core_query : null,
+    ing: typeof j.first_ingredients === 'string'
+      ? j.first_ingredients.toLowerCase().split(',').map(s => s.trim()).filter(Boolean).slice(0, 3)
+      : [],
   };
   return (ans.search || ans.core) ? ans : null;
 }
@@ -1230,9 +1233,18 @@ function bestFor(q){
 // whichever result set matched better.
 function findByAnswer(ans){
   let best = bestFor(ans.search);
+  let usedCore = false;
   if (!best || best.hit.conf < 80){
     const alt = bestFor(ans.core);
-    if (alt && (!best || alt.hit.conf > best.hit.conf)) best = alt;
+    if (alt && (!best || alt.hit.conf > best.hit.conf)){ best = alt; usedCore = true; }
+  }
+  // Ingredients line: for single-ingredient repacks the ingredient IS the
+  // product ("ING: SPEARMINT LEAVES"). Consult it when the label name matched
+  // nothing well, or when we fell back to the generic core noun — a real
+  // ingredient ("rolled oats") beats a generic word ("blend") at equal footing.
+  if (ans.ing && ans.ing.length && (!best || best.hit.conf < 80 || usedCore)){
+    const alt = bestFor(ans.ing[0]);
+    if (alt && (!best || alt.hit.conf >= best.hit.conf - 5)) best = alt;
   }
   return best;
 }

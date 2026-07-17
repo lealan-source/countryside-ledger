@@ -25,11 +25,11 @@ function check(label, ok, detail) {
 
 console.log('— equivalences —');
 {
-  const hits = q('milk chocolate chips 50 lb');
-  const r = rankOf(hits, it => /drops chocolate milk/i.test(it.name) && it.v === 'gw', 5);
-  check('chips↔drops: "milk chocolate chips 50 lb" → GW Drops Chocolate Milk in top 5',
-    r >= 0, r < 0 ? 'top: ' + (hits[0] ? hits[0].it.name : 'none') : null);
-  if (r >= 0) check('  …and near 100%', hits[r].conf >= 90, 'conf=' + hits[r].conf);
+  const gwHits = q('milk chocolate chips 50 lb').filter(h => h.it.v === 'gw');
+  const r = rankOf(gwHits, it => /drops chocolate milk/i.test(it.name), 3);
+  check('chips↔drops: "milk chocolate chips 50 lb" → GW Drops Chocolate Milk tops the GW section',
+    r >= 0, r < 0 ? 'GW top: ' + (gwHits[0] ? gwHits[0].it.name : 'none') : null);
+  if (r >= 0) check('  …and near 100%', gwHits[r].conf >= 90, 'conf=' + gwHits[r].conf);
 }
 {
   const a = q('25# oats'), b = q('25 lb oats');

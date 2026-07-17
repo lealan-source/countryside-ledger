@@ -33,14 +33,14 @@ function send(res, code, obj) {
 function identify(imgPath) {
   return new Promise(resolve => {
     const prompt =
-      `Look at the image file at ${imgPath} — a photo taken in a bulk-food store, ` +
-      `either a shelf tag or a product package. Identify the product. ` +
-      `Ignore ALL barcodes and barcode numbers (they are the store's own scale-label codes, never catalog numbers). ` +
-      `Ignore per-bag net weight, price, and sell-by dates (they vary bag to bag). ` +
+      `Look at the image file at ${imgPath} — a photo taken in a bulk-food store: ` +
+      `a shelf tag, a product package, or the store's own scale label (labels headed "Countryside Market" are always the store's scale labels). Identify the product. ` +
+      `Ignore ALL barcodes and their digits (store codes, never catalog numbers). Ignore price, sell-by, and per-bag net weight. ` +
       `Reply with ONLY minified JSON, no other text: ` +
       `{"product":"<what it is>","details":"<brand/pack details if visible>",` +
-      `"search_query":"<2 to 5 lowercase words, catalog-style; KEEP variety words that name the product (maple granola, garlic salt); omit colors and marketing words>",` +
-      `"core_query":"<1 or 2 lowercase words, the generic product noun>"}`;
+      `"search_query":"<2 to 5 lowercase words, catalog-style. KEEP words that pick a specific product: maple, semi-sweet, decaf, whole, crushed, organic, old fashioned, dark, light. DROP marketing words: natural, premium, fancy, gourmet, deluxe, homestyle. When unsure, keep the word>",` +
+      `"core_query":"<1 or 2 lowercase words, the generic product noun>",` +
+      `"first_ingredients":"<first 1 to 3 items on the ING/ingredients line if visible, comma separated, else empty>"}`;
     const p = spawn(CLAUDE, ['-p', prompt, '--model', 'haiku', '--allowedTools', 'Read'], {
       cwd: path.dirname(imgPath),
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -61,6 +61,7 @@ function identify(imgPath) {
           product: typeof j.product === 'string' ? j.product : '',
           search_query: typeof j.search_query === 'string' ? j.search_query.toLowerCase() : null,
           core_query: typeof j.core_query === 'string' ? j.core_query.toLowerCase() : null,
+          first_ingredients: typeof j.first_ingredients === 'string' ? j.first_ingredients.toLowerCase() : '',
         });
       } catch (e) { resolve({ error: 'bad-json', raw: m[0].slice(0, 400) }); }
     });
