@@ -710,7 +710,21 @@ function closestMatch(it, v){
   if (!toks.length) return null;
   const hits = LedgerSearch.query(toks.join(' ')).hits.filter(h => h.it.v === v);
   if (!hits.length || hits[0].score < 0.55) return null;
-  return {it: hits[0].it, sim: hits[0].conf};
+  // Same product often comes in several pack sizes. Among near-equal name
+  // matches, prefer the same bulk/prepacked class, then the pack size
+  // closest to the picked one (log-ratio: 50→25 counts like 50→100).
+  const band = hits.filter(h => h.score >= hits[0].score - 0.06);
+  band.sort((a, b) => {
+    const ca = (a.it.bulk === it.bulk ? 0 : 1) - (b.it.bulk === it.bulk ? 0 : 1);
+    if (ca) return ca;
+    if (it.lbs){
+      const da = a.it.lbs ? Math.abs(Math.log(a.it.lbs / it.lbs)) : 9;
+      const db = b.it.lbs ? Math.abs(Math.log(b.it.lbs / it.lbs)) : 9;
+      if (Math.abs(da - db) > 1e-9) return da - db;
+    }
+    return b.score - a.score;
+  });
+  return {it: band[0].it, sim: band[0].conf};
 }
 /* ============================================================
    RENDER — comparison ticket
@@ -811,7 +825,7 @@ function renderTicket(){
       </div>
       <div class="serr-b"></div>
     </div>
-    <div class="t-note">${rows.length > 1 ? `Compared ${rows.length} vendors — closest match by name, check pack sizes` : 'Only ' + VENDORS[picked.v].label + ' carries a close match'} · prices refreshed ${PRICES_REFRESHED}</div>`;
+    <div class="t-note">${rows.length > 1 ? `Compared ${rows.length} vendors — closest match by name &amp; pack size` : 'Only ' + VENDORS[picked.v].label + ' carries a close match'} · prices refreshed ${PRICES_REFRESHED}</div>`;
   $('#barNo').textContent = 'Nº ' + t.no;
   $('#btnCopy').addEventListener('click', copySummary);
 }
