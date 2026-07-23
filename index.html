@@ -1191,6 +1191,18 @@ function ghHeaders(t){
 const b64enc = s => btoa(unescape(encodeURIComponent(s)));
 const b64dec = s => decodeURIComponent(escape(atob(String(s).replace(/\s/g, ''))));
 
+async function ensureMailbox(t){
+  // first send ever: create the private mailbox repo with the user's token
+  try{
+    const res = await fetchTimeout('https://api.github.com/user/repos', {
+      method: 'POST',
+      headers: { ...ghHeaders(t), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'countryside-orders', private: true, auto_init: true,
+        description: 'Countryside Ledger order-sheet mailbox between devices' }),
+    }, 25000);
+    return res.status === 201 || res.status === 422; // created, or already existed
+  }catch(e){ return false; }
+}
 async function sendSheetsViaGithub(){
   const t = photoCfg().gh;
   if (!t || !ordersTotalLines()) return;
@@ -1200,14 +1212,19 @@ async function sendSheetsViaGithub(){
     orders: state.orders,
     text: allSheetsText(),
   };
+  const doPut = () => fetchTimeout(GH_INBOX + '/orders-' + Date.now() + '-' + deviceId() + '.json', {
+    method: 'PUT',
+    headers: ghHeaders(t),
+    body: JSON.stringify({ message: 'Order sheets from ' + deviceId(), content: b64enc(JSON.stringify(payload, null, 1)) }),
+  }, 25000);
   try{
-    const res = await fetchTimeout(GH_INBOX + '/orders-' + Date.now() + '-' + deviceId() + '.json', {
-      method: 'PUT',
-      headers: ghHeaders(t),
-      body: JSON.stringify({ message: 'Order sheets from ' + deviceId(), content: b64enc(JSON.stringify(payload, null, 1)) }),
-    }, 25000);
+    let res = await doPut();
+    if (res.status === 404 && await ensureMailbox(t)){
+      toast('SETTING UP YOUR MAILBOX…');
+      res = await doPut();
+    }
     if (res.status === 401 || res.status === 403) return toast('GITHUB TOKEN REJECTED — CHECK IT UNDER “PRICE LISTS”', true);
-    if (res.status === 404) return toast('MAILBOX NOT FOUND — CREATE THE countryside-orders REPO FIRST', true);
+    if (res.status === 404) return toast('THIS TOKEN CAN’T CREATE THE MAILBOX — RUN setup-orders.cmd ON THE PC ONCE', true);
     if (!res.ok) return toast('COULDN’T SEND — TRY AGAIN IN A MINUTE', true);
     toast('SENT — OPEN THE LEDGER ON YOUR OTHER DEVICE TO IMPORT');
   }catch(e){
