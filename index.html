@@ -414,7 +414,7 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
     <div class="d-field"><label for="cfgKey">API KEY</label><input id="cfgKey" type="password" placeholder="sk-ant-… (optional)" autocomplete="off"></div>
     <div class="d-sec">SEND BETWEEN DEVICES</div>
     <div class="d-field"><label for="cfgGh">GITHUB TOKEN</label><input id="cfgGh" type="password" placeholder="github_pat_… (same on both devices)" autocomplete="off"></div>
-    <div class="d-note">Lets order sheets travel between your phone and PC through your private mailbox. Create ONE token at github.com → Settings → Developer settings → Fine-grained tokens: repository access ONLY countryside-orders, permission Contents read &amp; write — then paste the same token here on both devices.</div>
+    <div class="d-note">Lets order sheets travel between your phone and PC through your private mailbox. One time only: at github.com → New repository, make an empty PRIVATE repo named countryside-orders. Then create ONE token at github.com → Settings → Developer settings → Fine-grained tokens: repository access ONLY countryside-orders, permission Contents read &amp; write — then paste the same token here on both devices.</div>
     <div class="d-note">With an API key saved (console.anthropic.com), photos are answered in a few seconds on any device — about a quarter of a cent each. Without one, the office PC falls back to the store's Claude sign-in (free, but slower). The key stays on this device only.</div>
     <div class="d-note">To update prices, drop the new sheet in the Price Sheets folder and re-import — order and hidden vendors are remembered on this device.</div>
   </div>
@@ -1173,6 +1173,8 @@ document.addEventListener('click', e => {
    device lists the inbox on foreground, imports, and deletes.
    One fine-grained token (Contents R/W on that repo only), pasted
    on both devices, stored in localStorage like the API key.
+   The repo is made by hand once — a fine-grained token scoped to
+   a single repo cannot create repos, so the app never tries to.
    ============================================================ */
 const GH_INBOX = 'https://api.github.com/repos/lealan-source/countryside-orders/contents/inbox';
 let INBOX = [];
@@ -1188,21 +1190,31 @@ function deviceId(){
 function ghHeaders(t){
   return { 'Authorization': 'Bearer ' + t, 'Accept': 'application/vnd.github+json' };
 }
+/* Names of inbox files already folded into the order sheets. A delete that
+   fails (dropped signal mid-import) would otherwise leave the file in the
+   mailbox to be listed and added a SECOND time on the next foreground —
+   silently doubling what gets ordered. Remembered per device; last 50. */
+function importedOrders(){
+  try{ return JSON.parse(localStorage.getItem('ledgerImportedOrders') || '[]'); }catch(e){ return []; }
+}
+function markOrdersImported(name){
+  try{
+    const seen = importedOrders();
+    if (seen.includes(name)) return;
+    seen.push(name);
+    localStorage.setItem('ledgerImportedOrders', JSON.stringify(seen.slice(-50)));
+  }catch(e){}
+}
+function deleteInboxFile(t, name, sha){
+  return fetchTimeout(GH_INBOX + '/' + encodeURIComponent(name), {
+    method: 'DELETE',
+    headers: ghHeaders(t),
+    body: JSON.stringify({ message: 'imported on ' + deviceId(), sha }),
+  }, 20000);
+}
 const b64enc = s => btoa(unescape(encodeURIComponent(s)));
 const b64dec = s => decodeURIComponent(escape(atob(String(s).replace(/\s/g, ''))));
 
-async function ensureMailbox(t){
-  // first send ever: create the private mailbox repo with the user's token
-  try{
-    const res = await fetchTimeout('https://api.github.com/user/repos', {
-      method: 'POST',
-      headers: { ...ghHeaders(t), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'countryside-orders', private: true, auto_init: true,
-        description: 'Countryside Ledger order-sheet mailbox between devices' }),
-    }, 25000);
-    return res.status === 201 || res.status === 422; // created, or already existed
-  }catch(e){ return false; }
-}
 async function sendSheetsViaGithub(){
   const t = photoCfg().gh;
   if (!t || !ordersTotalLines()) return;
@@ -1218,13 +1230,9 @@ async function sendSheetsViaGithub(){
     body: JSON.stringify({ message: 'Order sheets from ' + deviceId(), content: b64enc(JSON.stringify(payload, null, 1)) }),
   }, 25000);
   try{
-    let res = await doPut();
-    if (res.status === 404 && await ensureMailbox(t)){
-      toast('SETTING UP YOUR MAILBOX…');
-      res = await doPut();
-    }
+    const res = await doPut();
     if (res.status === 401 || res.status === 403) return toast('GITHUB TOKEN REJECTED — CHECK IT UNDER “PRICE LISTS”', true);
-    if (res.status === 404) return toast('THIS TOKEN CAN’T CREATE THE MAILBOX — RUN setup-orders.cmd ON THE PC ONCE', true);
+    if (res.status === 404) return toast('MAILBOX NOT FOUND — MAKE THE PRIVATE countryside-orders REPO ON GITHUB ONCE', true);
     if (!res.ok) return toast('COULDN’T SEND — TRY AGAIN IN A MINUTE', true);
     toast('SENT — OPEN THE LEDGER ON YOUR OTHER DEVICE TO IMPORT');
   }catch(e){
@@ -1239,8 +1247,12 @@ async function checkOrdersInbox(){
     if (res.status === 404){ INBOX = []; return; }   // empty inbox (or repo not made yet)
     if (!res.ok) return;
     const files = await res.json();
+    const seen = importedOrders();
     INBOX = (Array.isArray(files) ? files : []).filter(f =>
-      f.name.endsWith('.json') && !f.name.includes('-' + deviceId() + '.json'));
+      f.name.endsWith('.json') && !f.name.includes('-' + deviceId() + '.json') && !seen.includes(f.name));
+    // already folded in, but its delete never landed — clear it out now
+    (Array.isArray(files) ? files : []).filter(f => seen.includes(f.name))
+      .forEach(f => deleteInboxFile(t, f.name, f.sha).catch(() => {}));
     if (INBOX.length){
       if (document.body.dataset.view === 'orders') renderOrders();
       else if (inboxToastShown !== INBOX.length){
@@ -1270,12 +1282,12 @@ async function importInbox(){
           added++;
         }
       }
-      await fetchTimeout(GH_INBOX + '/' + encodeURIComponent(f.name), {
-        method: 'DELETE',
-        headers: ghHeaders(t),
-        body: JSON.stringify({ message: 'imported on ' + deviceId(), sha: j.sha }),
-      }, 20000);
+      // save the lines, THEN mark the file used, THEN clean it up. In that order a
+      // crash or a dropped signal can only ever cost us the tidy-up, never the order.
+      persist();
+      markOrdersImported(f.name);
       sheets++;
+      await deleteInboxFile(t, f.name, j.sha).catch(() => {});  // next foreground retries it
     }catch(e){/* leave the file for the next try */}
   }
   INBOX = [];

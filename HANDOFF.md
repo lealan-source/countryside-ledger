@@ -25,7 +25,7 @@ distributors, and build per-vendor order sheets while walking inventory.
 | --- | --- |
 | `index.html` | The entire app — markup, styles, logic |
 | `search.js` | Search engine (`LedgerSearch`), also loaded by the tests |
-| `sw.js` | Service worker — **bump `VERSION` on every deploy** (at v21) or installed apps won't update |
+| `sw.js` | Service worker — **bump `VERSION` on every deploy** (at v22) or installed apps won't update |
 | `data/catalog.json` | 20,745 items across 5 vendors — generated, don't hand-edit |
 | `tools/build.js` | Importer: price sheets → catalog. Every vendor's format differs; Denver Wholesale is built from invoices |
 | `tools/thumbs.js` | Product thumbnails |
@@ -43,10 +43,13 @@ distributors, and build per-vendor order sheets while walking inventory.
 
 1. **Order-sheet sending between my phone and PC is built but never tested end to
    end.** It uses a private GitHub repo called `countryside-orders` as a mailbox.
-   That repo does not exist yet — the app tries to create it on the first send
-   (which works with a classic GitHub token, not a fine-grained one), and
-   `setup-orders.cmd` is the fallback. Needs verifying: send from the phone,
-   import on the PC, confirm the mailbox file is deleted afterward.
+   Create that repo **by hand, once** — empty and private. The app no longer tries
+   to create it: a fine-grained token scoped to one repo can't create repos, so the
+   old self-provisioning path could never have worked with the token the app asks
+   for. Then make ONE fine-grained token (repo access: only `countryside-orders`,
+   permission: Contents read & write) and paste it on both devices under
+   **Price lists ›**. Needs verifying: send from the phone, import on the PC,
+   confirm the mailbox file is deleted afterward.
 2. **The old PC still has a full copy of the project** and needs to be cleaned out
    once this PC is confirmed working.
 
