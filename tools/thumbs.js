@@ -2,7 +2,7 @@
 const sharp = require('sharp');
 const fs = require('fs');
 const path = require('path');
-const PROJ = 'C:/Users/StoreLIVE/Documents/Country Ledger';
+const PROJ = require('path').resolve(__dirname, '..').replace(/\\/g, '/');
 const jobs = JSON.parse(fs.readFileSync(__dirname + '/thumb-jobs.json', 'utf8'));
 const CONC = 10;
 

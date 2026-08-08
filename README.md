@@ -51,6 +51,28 @@ pound; Frontier prices per each with case counts. Cross-vendor comparison on
 the ticket is a runtime closest-match by name — each row shows the matched
 item and its match %, so check pack sizes before ordering.
 
+## Moving the project to another PC
+
+The app itself needs nothing — install it from the URL above. These steps are
+for the *project* folder, so the other PC can re-import prices and be worked on
+with Claude Code.
+
+1. Install [Git](https://git-scm.com) and [Node.js](https://nodejs.org) (LTS).
+2. Clone into Documents:
+   `git clone https://github.com/lealan-source/countryside-ledger.git "%USERPROFILE%\Documents\Country Ledger"`
+   That brings the app, the catalog, all 18k thumbnails, and the tools.
+3. Copy the two folders git deliberately leaves behind — `Price Sheets/`
+   (a few MB, needed to re-import) and, only if you'll add new product photos,
+   `Product Images/` (~3 GB). USB drive or OneDrive both work.
+4. In `tools/`: `npm install`.
+5. Run `tools/install-shortcuts.cmd` for the Start Menu / Desktop icon.
+6. Optional, for free photo search on that PC:
+   `npm install -g @anthropic-ai/claude-code`, run `claude` once, `/login`.
+
+Every path in the tools is derived from the project folder, so the username and
+location don't matter. Rebuilding without `Product Images/` is safe — existing
+thumbnails are kept rather than dropped.
+
 ## Photo search
 
 The model only *reads the label* (returning `{product, details,

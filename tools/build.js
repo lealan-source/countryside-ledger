@@ -4,7 +4,7 @@ const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
 
-const PROJ = 'C:/Users/StoreLIVE/Documents/Country Ledger';
+const PROJ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 const SHEETS = PROJ + '/Price Sheets';
 const IMAGES = PROJ + '/Product Images';
 
@@ -396,13 +396,27 @@ for (const [folder, v] of Object.entries(IMG_DIRS)) {
   if (fs.existsSync(dir)) walk(dir, v);
 }
 
+// Thumbnails already generated. The full-size source library is ~3 GB and is
+// not in git, so a machine without it must still keep the pictures it has —
+// otherwise a rebuild here would strip every image from the published app.
+const thumbHave = new Set();
+for (const v of Object.values(IMG_DIRS)) {
+  const d = path.join(PROJ, 'images', v);
+  if (!fs.existsSync(d)) continue;
+  for (const f of fs.readdirSync(d)) {
+    if (/\.webp$/i.test(f)) thumbHave.add(v + ':' + f.replace(/\.webp$/i, ''));
+  }
+}
+
 /* ---------- match & emit ---------- */
 const jobs = [];
 let matched = 0;
 for (const o of offers) {
-  const src = imgIndex.get(o.v + ':' + o.sku);
-  o.img = !!src;
-  if (src) { matched++; jobs.push({ src, out: `images/${o.v}/${o.sku}.webp` }); }
+  const k = o.v + ':' + o.sku;
+  const src = imgIndex.get(k);
+  o.img = !!src || thumbHave.has(k);
+  if (o.img) matched++;
+  if (src) jobs.push({ src, out: `images/${o.v}/${o.sku}.webp` });
 }
 
 const V = ['dv', 'gw', 'wc', 'fr', 'dw'];

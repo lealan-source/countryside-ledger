@@ -6,8 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const DIR = 'C:/Users/StoreLIVE/Documents/Country Ledger/Price Sheets/Denver Wholesale';
-const OUT = 'C:/Users/StoreLIVE/Documents/Country Ledger/Product Images/Denver Wholesale';
+const PROJ = path.resolve(__dirname, '..').replace(/\\/g, '/');
+const DIR = PROJ + '/Price Sheets/Denver Wholesale';
+const OUT = PROJ + '/Product Images/Denver Wholesale';
 fs.mkdirSync(OUT, { recursive: true });
 
 const items = new Map(); // id → {url, name}
