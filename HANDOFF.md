@@ -25,9 +25,10 @@ distributors, and build per-vendor order sheets while walking inventory.
 | --- | --- |
 | `index.html` | The entire app — markup, styles, logic |
 | `search.js` | Search engine (`LedgerSearch`), also loaded by the tests |
-| `sw.js` | Service worker — **bump `VERSION` on every deploy** (at v22) or installed apps won't update |
+| `sw.js` | Service worker — **bump `VERSION` on every deploy** or installed apps won't update (`Update Prices.cmd` does this for you) |
 | `data/catalog.json` | 20,745 items across 5 vendors — generated, don't hand-edit |
-| `tools/build.js` | Importer: price sheets → catalog. Every vendor's format differs; Denver Wholesale is built from invoices |
+| `Update Prices.cmd` | The weekly price update, start to finish — rebuild, check, ask, publish |
+| `tools/build.js` | Importer: price sheets → catalog. Vendors are detected by what's inside the workbook, not the filename; it refuses to write a catalog that looks broken |
 | `tools/thumbs.js` | Product thumbnails |
 | `tools/search-tests.js` | 29 regression tests, each one a real bug reported from the aisles |
 | `Price Sheets/`, `Product Images/` | Source data, ~3 GB, gitignored — only on this PC and my external drive |
