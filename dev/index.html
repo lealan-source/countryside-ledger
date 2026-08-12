@@ -276,6 +276,21 @@ body[data-view="orders"] .toolbar{display:none}
    What the app opens on before you've typed anything. Each panel says plainly
    when it has nothing to show and why, rather than sitting there empty. */
 .home{padding:4px 0 24px}
+/* masthead — the ledger announcing itself, and how current it is */
+.h-top{text-align:center;padding:20px 16px 4px}
+.h-top .wheat{width:150px;margin:0 auto 8px}
+.h-top h2{font-family:var(--display);font-weight:600;font-size:21px;letter-spacing:.06em;margin:0;line-height:1.1}
+.h-stats{display:flex;justify-content:center;flex-wrap:wrap;gap:0 22px;margin-top:9px}
+.h-stat{text-align:center}
+.h-stat .v{font-family:var(--mono);font-size:15px;font-weight:700;display:block;line-height:1.25}
+.h-stat .k{font-family:var(--display);font-size:8.5px;letter-spacing:.16em;color:var(--chalk-dim);display:block}
+.h-stat.alert .v{color:var(--best)}
+/* quick navigation */
+.h-nav{display:flex;gap:8px;margin:16px 16px 0}
+/* min-height 46px — these get tapped one-handed while holding a scanner */
+.h-nav button{flex:1;background:none;border:1.5px solid var(--rule);padding:11px 6px;min-height:46px;
+  cursor:pointer;font-family:var(--display);font-size:11px;letter-spacing:.13em;color:var(--ink)}
+.h-nav button:hover{background:var(--board-deep)}
 .h-sec{margin:18px 16px 0}
 .h-hd{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
   padding-bottom:6px;border-bottom:1.5px solid var(--rule);margin-bottom:10px}
@@ -394,6 +409,15 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
   .r-conf{width:40px}
   .ticket-page{display:block;padding:16px 22px 22px;position:sticky;top:12px}
   body[data-view="ticket"] .ticket-page{display:block}
+  /* On the home screen there is nothing picked, so the docked ticket was just
+     an empty "Nothing picked yet" card taking a third of the window. Drop it
+     and let the panels use the full width, two across. */
+  body[data-home] main{grid-template-columns:1fr}
+  body[data-home] .ticket-page{display:none}
+  body[data-home] .results-page{border-right:0}
+  body[data-home] .home{display:grid;grid-template-columns:1fr 1fr;
+    column-gap:22px;align-items:start;padding:4px 6px 24px}
+  body[data-home] .h-top,body[data-home] .h-nav,body[data-home] .h-foot{grid-column:1/-1}
   .t-name{font-size:22px}
   .t-head .wheat{width:100px}
   .t-row{padding:11px 2px}
@@ -858,22 +882,58 @@ function homeIndexHTML(hist){
       pricing says nothing about food prices generally.</div>`;
 }
 
+const stat = (v, k, alert) =>
+  `<div class="h-stat${alert ? ' alert' : ''}"><span class="v">${v}</span><span class="k">${k}</span></div>`;
+
+function homeStatsHTML(){
+  const sales = ITEMS.filter(it => it.sale).length;
+  const stale = Object.keys(PRICE_DATES || {}).filter(v => (priceAgeDays(v) || 0) >= 30);
+  return `<div class="h-stats">
+    ${stat(ITEMS.length.toLocaleString(), 'ITEMS')}
+    ${stat(Object.keys(VENDORS).length, 'PRICE LISTS')}
+    ${stat(sales, 'ON SALE', sales > 0)}
+    ${stat(stale.length, stale.length === 1 ? 'LIST BEHIND' : 'LISTS BEHIND', stale.length > 0)}
+    ${stat(PRICES_REFRESHED, 'REFRESHED')}
+  </div>`;
+}
+
 function renderHome(el){
+  document.body.dataset.home = '1';
   el.innerHTML = `<div class="home">
+    <div class="h-top">
+      <div class="wheat"></div>
+      <h2>COUNTRYSIDE LEDGER</h2>
+      ${homeStatsHTML()}
+    </div>
+    <div class="h-nav">
+      <button id="hNavPhoto">PHOTO OF ITEM</button>
+      <button id="hNavOrders">ORDER SHEETS</button>
+      <button id="hNavLists">PRICE LISTS</button>
+    </div>
     ${sec('hAttn', 'NEEDS ATTENTION', 'things we buy')}
     ${sec('hSale', 'ON SALE', 'under their usual price')}
     ${sec('hInv', 'RECENT INVOICES', 'what we last bought')}
     ${sec('hIdx', 'FOOD PRICES', 'across the price lists')}
-    <div class="h-sec"><div class="h-empty" style="text-align:center">
-      ${ITEMS.length.toLocaleString()} items across ${Object.keys(VENDORS).length} price lists —
-      search above, or shoot the shelf tag.</div></div>
+    <div class="h-foot h-sec"><div class="h-empty" style="text-align:center">
+      Search above, or shoot the shelf tag.</div></div>
   </div>`;
+
+  // the three places worth going from here, without hunting the toolbar
+  $('#hNavPhoto').addEventListener('click', () => $('#btnPhoto').click());
+  $('#hNavOrders').addEventListener('click', () => $('#btnOrders').click());
+  $('#hNavLists').addEventListener('click', () => $('#btnDrawer').click());
+
   $('#hSale').innerHTML = homeSalesHTML();
   loadPurchases().then(p => {
     if (state.query.trim()) return;              // user started typing meanwhile
     const a = $('#hAttn'), i = $('#hInv');
     if (a) a.innerHTML = homeAttentionHTML(p);
     if (i) i.innerHTML = homeInvoicesHTML(p);
+    // fold the attention count into the masthead once we know it
+    const at = p && p.attention;
+    const n = at ? (at.switch || []).length + (at.jump || []).length + (at.gone || []).length : 0;
+    const stats = $('.h-stats');
+    if (stats && n) stats.insertAdjacentHTML('afterbegin', stat(n, 'NEED ATTENTION', true));
   });
   loadHistory().then(h => {
     if (state.query.trim()) return;
@@ -887,6 +947,7 @@ function renderResults(){
   const q = state.query;
   if (!ITEMS.length) return; // still loading / failed — state screen already shown
   if (!q.trim()){ renderHome(el); return; }
+  delete document.body.dataset.home;   // searching brings the ticket column back
   const groups = searchGroups(q);
   if (!groups.length){
     el.innerHTML = `
