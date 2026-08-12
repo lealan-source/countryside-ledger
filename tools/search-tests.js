@@ -188,5 +188,39 @@ console.log('— money semantics —');
     bad.slice(0, 2).map(it => `${it.name} perLb=${it.perLb} lbs=${it.lbs} price=${it.price}`).join('; '));
 }
 
+// Searching a product type must return that product, not everything flavoured
+// with it. "chocolate chips" used to rank ten cookies above the baking chips.
+console.log('— product type, not flavour —');
+{
+  const typeCase = (label, query, real, fake, depth) => {
+    const hits = q(query).slice(0, depth || 5);
+    if (!hits.length) return check(label, null, 'no hits');
+    const firstReal = hits.findIndex(h => real.test(h.it.name) && !fake.test(h.it.name));
+    const wrong = hits.filter(h => fake.test(h.it.name)).length;
+    check(label, firstReal >= 0 && firstReal < 3,
+      firstReal < 0 ? `no real match in top ${hits.length}; top was "${hits[0].it.name}"`
+        : `real at #${firstReal + 1}, ${wrong} wrong-product hit(s) in view`);
+  };
+  typeCase('"chocolate chips" → baking chips, not cookies', 'chocolate chips',
+    /chocolate\s+(chips?|drops?|morsels?)|(chips?|drops?)\s+chocolate/i,
+    /cookie|oat bar|oatmeal|bites|brownie|muffin|pancake|granola|trail/i);
+  typeCase('"sea salt" → salt, not salted snacks', 'sea salt',
+    /\bsea salt\b/i, /peanut|chip|caramel|popcorn|cracker|almond|cashew/i);
+  typeCase('"peanut butter" → the butter, not peanut-butter sweets', 'peanut butter',
+    /peanut butter/i, /pillow|topping|cookie|candy|toasted peanut/i);
+  typeCase('"cheddar cheese" → cheese, not powder or sauce', 'cheddar cheese',
+    /cheddar/i, /cracker|popcorn|curl|puff|sauce|powder|dip/i);
+  // the chips↔drops synonym: some vendors never write the word "chips"
+  const gwDrops = q('chocolate chips').filter(h => h.it.v === 'gw').slice(0, 3);
+  check('"chocolate chips" finds Gateway, who call them drops',
+    gwDrops.length ? gwDrops.some(h => /drops/i.test(h.it.name)) : null,
+    gwDrops.length ? gwDrops[0].it.name : 'no GW hits');
+  // pack codes (1M, 4M, NR3) must not be scored as meaningful words
+  const chips = q('chocolate chips').filter(h => h.it.v === 'dv').slice(0, 3);
+  check('pack codes do not bury the real item',
+    chips.length ? chips.some(h => /chocolate chips/i.test(h.it.name)) : null,
+    chips.length ? chips.map(h => h.it.name).join(' | ') : 'no DV hits');
+}
+
 console.log(`\n${pass} passed · ${fail} failed · ${skip} skipped`);
 process.exit(fail ? 1 : 0);

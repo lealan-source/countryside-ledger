@@ -272,6 +272,81 @@ body[data-view="orders"] .toolbar{display:none}
 .m-grid .g-row{display:flex;justify-content:space-between;gap:14px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:12.5px}
 .m-grid .g-row .k{font-family:var(--display);font-size:10.5px;letter-spacing:.14em;color:var(--ink-soft);padding-top:2px}
 .m-grid .g-row .v{text-align:right}
+/* ---- home page (dev) ----
+   What the app opens on before you've typed anything. Each panel says plainly
+   when it has nothing to show and why, rather than sitting there empty. */
+.home{padding:4px 0 24px}
+/* masthead — the ledger announcing itself, and how current it is */
+.h-top{text-align:center;padding:20px 16px 4px}
+.h-top .wheat{width:150px;margin:0 auto 8px}
+.h-top h2{font-family:var(--display);font-weight:600;font-size:21px;letter-spacing:.06em;margin:0;line-height:1.1}
+.h-stats{display:flex;justify-content:center;flex-wrap:wrap;gap:0 22px;margin-top:9px}
+.h-stat{text-align:center}
+.h-stat .v{font-family:var(--mono);font-size:15px;font-weight:700;display:block;line-height:1.25}
+.h-stat .k{font-family:var(--display);font-size:8.5px;letter-spacing:.16em;color:var(--chalk-dim);display:block}
+.h-stat.alert .v{color:var(--best)}
+/* quick navigation */
+.h-nav{display:flex;gap:8px;margin:16px 16px 0}
+/* min-height 46px — these get tapped one-handed while holding a scanner */
+.h-nav button{flex:1;background:none;border:1.5px solid var(--rule);padding:11px 6px;min-height:46px;
+  cursor:pointer;font-family:var(--display);font-size:11px;letter-spacing:.13em;color:var(--ink)}
+.h-nav button:hover{background:var(--board-deep)}
+.h-sec{margin:18px 16px 0}
+.h-hd{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding-bottom:6px;border-bottom:1.5px solid var(--rule);margin-bottom:10px}
+.h-hd .t{font-family:var(--display);font-size:11px;letter-spacing:.2em}
+.h-hd .n{font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--chalk-dim)}
+.h-empty{font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--chalk-dim);line-height:1.5}
+.h-card{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);
+  cursor:pointer;width:100%;background:none;border-left:0;border-right:0;border-top:0;text-align:left}
+.h-card:last-child{border-bottom:0}
+.h-card .m{flex:1;min-width:0}
+.h-card .nm{font-size:13px;color:var(--ink);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-card .sb{font-size:11.5px;color:var(--chalk-dim);display:block;margin-top:2px}
+.h-card .rt{font-family:var(--mono);font-size:13px;font-weight:700;white-space:nowrap;text-align:right}
+.h-card .rs{font-family:var(--mono);font-size:10.5px;color:var(--chalk-dim);display:block;text-align:right}
+.h-save{color:var(--wc);font-weight:700}
+.h-rise{color:var(--best);font-weight:700}
+/* invoices */
+.inv{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line)}
+.inv:last-child{border-bottom:0}
+.inv .d{font-family:var(--serif);font-style:italic;font-size:12.5px}
+.inv .c{font-family:var(--mono);font-size:11px;color:var(--chalk-dim)}
+.inv .a{font-family:var(--mono);font-size:13px;font-weight:700}
+/* price index */
+.idx-chart{display:block;width:100%;height:110px;overflow:visible;margin-top:4px}
+.idx-note{font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--chalk-dim);margin-top:8px;line-height:1.5}
+
+/* ---- one-screen product view (dev) ----
+   The goal: pick up the phone and in a few seconds know where we got it last
+   and where we can get it. Those two answers go at the top; the spec sheet,
+   which you rarely need in the aisle, goes to the bottom. */
+.m-sec{margin:16px 16px 0}
+.m-sec-t{font-family:var(--display);font-size:10px;letter-spacing:.2em;color:var(--chalk-dim);
+  padding-bottom:6px;border-bottom:1.5px solid var(--rule);margin-bottom:9px}
+.m-none{font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--chalk-dim)}
+
+/* where we got it last */
+.lb-card{background:var(--board-deep);padding:10px 12px}
+.lb-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.lb-when{font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--ink-soft)}
+.lb-amt{font-family:var(--mono);font-size:15px;font-weight:700;white-space:nowrap}
+.lb-qty{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-top:3px}
+.lb-prev{margin-top:8px;padding-top:7px;border-top:1px solid var(--line);
+  font-family:var(--mono);font-size:11px;color:var(--chalk-dim);display:flex;justify-content:space-between}
+
+/* where we can get it — the ticket comparison, inline */
+.wv-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.wv-row:last-child{border-bottom:0}
+.wv-row.best .wv-price{color:var(--best)}
+.wv-main{flex:1;min-width:0}
+.wv-name{font-size:12px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;margin-top:2px}
+.wv-price{font-family:var(--mono);font-size:14px;font-weight:700;text-align:right;white-space:nowrap}
+.wv-case{font-family:var(--mono);font-size:10.5px;color:var(--chalk-dim);text-align:right;white-space:nowrap;display:block}
+.wv-best{font-family:var(--display);font-size:9px;letter-spacing:.14em;color:var(--best);display:block;text-align:right}
+.wv-add{background:none;border:1px solid var(--ink-soft);font-family:var(--display);font-size:10px;
+  letter-spacing:.1em;padding:5px 7px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+
 /* price history — ledger ruling, red ink for rises, creek green for drops */
 .m-hist{margin:14px 16px 0;border-top:1px solid var(--line);padding-top:12px}
 .m-hist .h-t{font-family:var(--display);font-size:10px;letter-spacing:.2em;color:var(--chalk-dim);margin-bottom:9px}
@@ -334,6 +409,15 @@ footer .t{font-family:var(--serif);font-size:10px;letter-spacing:.32em;color:var
   .r-conf{width:40px}
   .ticket-page{display:block;padding:16px 22px 22px;position:sticky;top:12px}
   body[data-view="ticket"] .ticket-page{display:block}
+  /* On the home screen there is nothing picked, so the docked ticket was just
+     an empty "Nothing picked yet" card taking a third of the window. Drop it
+     and let the panels use the full width, two across. */
+  body[data-home] main{grid-template-columns:1fr}
+  body[data-home] .ticket-page{display:none}
+  body[data-home] .results-page{border-right:0}
+  body[data-home] .home{display:grid;grid-template-columns:1fr 1fr;
+    column-gap:22px;align-items:start;padding:4px 6px 24px}
+  body[data-home] .h-top,body[data-home] .h-nav,body[data-home] .h-foot{grid-column:1/-1}
   .t-name{font-size:22px}
   .t-head .wheat{width:100px}
   .t-row{padding:11px 2px}
@@ -667,19 +751,203 @@ function searchGroups(q){
    ============================================================ */
 const COLLAPSED_PER_VENDOR = 3;
 const EXPANDED_PER_VENDOR = 40;
+/* ============================================================
+   HOME — what the app opens on before you've searched anything.
+   ============================================================ */
+const sec = (id, title, note) =>
+  `<div class="h-sec"><div class="h-hd"><span class="t">${title}</span>` +
+  `<span class="n">${note || ''}</span></div><div id="${id}">` +
+  `<div class="h-empty">Looking…</div></div></div>`;
+
+function homeSalesHTML(){
+  const s = ITEMS.filter(it => it.sale && it.was > 0)
+    .sort((a, b) => (a.price / a.was) - (b.price / b.was)).slice(0, 8);
+  if (!s.length) return `<div class="h-empty">Nothing on sale right now. A sale is worked out by
+    comparing today's price against what the item has cost us before, so this fills in as prices move.</div>`;
+  return s.map(it => `
+    <button class="h-card" data-info="${esc(key(it))}">
+      <span class="m"><span class="nm">${esc(it.name)}</span>
+        <span class="sb">${VENDORS[it.v].label} · usually <span class="was">${money(it.was)}</span></span></span>
+      <span><span class="rt">${money(it.price)}</span>
+        <span class="rs h-save">${Math.round((1 - it.price / it.was) * 100)}% off</span></span>
+    </button>`).join('');
+}
+
+function homeAttentionHTML(pur){
+  if (!pur) return `<div class="h-empty">${PURCHASES_NOTE[purchasesWhy] || PURCHASES_NOTE.notoken}</div>`;
+  const a = pur.attention || {};
+  const out = [];
+  for (const s of (a.switch || []).slice(0, 5)) out.push(`
+    <button class="h-card" data-info="${esc(s.k)}">
+      <span class="m"><span class="nm">${esc(s.name)}</span>
+        <span class="sb">${VENDORS[s.to] ? VENDORS[s.to].label : s.to} is cheaper —
+          ${money(s.toLb)}/lb vs ${money(s.fromLb)}/lb · match ${s.conf}%</span></span>
+      <span><span class="rt h-save">−${s.save}%</span><span class="rs">switch</span></span>
+    </button>`);
+  for (const j of (a.jump || []).slice(0, 5)) out.push(`
+    <button class="h-card" data-info="${esc(j.k)}">
+      <span class="m"><span class="nm">${esc(j.name)}</span>
+        <span class="sb">was ${money(j.from)} · now ${money(j.to)}</span></span>
+      <span><span class="rt h-rise">+${j.pct}%</span><span class="rs">price rise</span></span>
+    </button>`);
+  for (const g of (a.gone || []).slice(0, 5)) out.push(`
+    <button class="h-card" data-info="${esc(g.k)}">
+      <span class="m"><span class="nm">${esc(g.name)}</span>
+        <span class="sb">${esc(g.why)}</span></span>
+      <span><span class="rs">check</span></span>
+    </button>`);
+  if (!out.length) return `<div class="h-empty">Nothing needs attention. This watches the things we
+    actually buy — a vendor undercutting our usual one, a price rising more than 15%, or an item going
+    out of stock or onto closeout.</div>`;
+  return out.join('');
+}
+
+function homeInvoicesHTML(pur){
+  if (!pur) return `<div class="h-empty">${PURCHASES_NOTE[purchasesWhy] || PURCHASES_NOTE.notoken}</div>`;
+  const byDate = new Map();
+  for (const recs of Object.values(pur.p || {})){
+    for (const [di, price, qty] of recs){
+      const d = pur.d[di];
+      if (!d) continue;
+      const e = byDate.get(d) || { lines: 0, total: 0 };
+      e.lines++; e.total += price * (qty || 0);
+      byDate.set(d, e);
+    }
+  }
+  const rows = [...byDate].sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 6);
+  if (!rows.length) return '<div class="h-empty">No invoices recorded yet.</div>';
+  return rows.map(([d, e]) => `
+    <div class="inv">
+      <div><div class="d">${fmtDay(d)}</div>
+        <div class="c">${e.lines} line${e.lines === 1 ? '' : 's'} · Denver Wholesale</div></div>
+      <div class="a">${e.total ? money(e.total) : '—'}</div>
+    </div>`).join('') +
+    `<div class="idx-note">Only Denver sends invoice spreadsheets. The other four will appear here
+      once they send invoices or order history.</div>`;
+}
+
+/* A price index needs the same basket measured repeatedly. Today almost all the
+   repeat data is Denver's, and Denver is a closeout house whose prices swing on
+   liquidation lots — an index drawn from that would claim food is getting 35%
+   cheaper, which is nonsense. So it is drawn only once enough items have moved,
+   and it says why in the meantime. */
+const IDX_MIN_ITEMS = 20;
+function homeIndexHTML(hist){
+  if (!hist || !hist.h) return '<div class="h-empty">No price history yet.</div>';
+  const dates = [...hist.d].sort();
+  const series = Object.entries(hist.h).filter(([k, v]) => v.length > 1 && !k.startsWith('dw:'));
+  if (series.length < IDX_MIN_ITEMS){
+    const dw = Object.entries(hist.h).filter(([k, v]) => v.length > 1 && k.startsWith('dw:')).length;
+    return `<div class="h-empty">Not enough price history yet — ${series.length} item${series.length === 1 ? '' : 's'}
+      from the four price-list vendors have moved${dw ? `, plus ${dw} at Denver Wholesale` : ''}.
+      Denver is left out on purpose: they deal in closeouts, so their swings say nothing about food
+      prices generally. This draws itself once a few weeks of updates have gone in.</div>`;
+  }
+  const pts = [];
+  for (const d of dates){
+    let sum = 0, n = 0;
+    for (const [, v] of series){
+      let first = null, at = null;
+      for (const [di, p] of v){
+        const dd = hist.d[di];
+        if (dd > d) break;
+        if (first === null) first = p;
+        at = p;
+      }
+      if (first && at){ sum += at / first; n++; }
+    }
+    if (n) pts.push({ d, idx: (sum / n) * 100, n });
+  }
+  if (pts.length < 2) return '<div class="h-empty">Not enough dates recorded yet.</div>';
+  const W = 320, H = 110, PX = 6, PY = 16;
+  const vals = pts.map(p => p.idx);
+  const lo = Math.min(...vals, 100), hi = Math.max(...vals, 100);
+  const span = (hi - lo) || 1;
+  const x = i => PX + (W - 2 * PX) * (i / (pts.length - 1));
+  const y = v => H - PY - (H - 2 * PY) * ((v - lo) / span);
+  const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(p.idx).toFixed(1)}`).join(' ');
+  const last = pts[pts.length - 1];
+  const move = last.idx - 100;
+  return `
+    <svg class="idx-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Food price index">
+      <line x1="0" y1="${y(100).toFixed(1)}" x2="${W}" y2="${y(100).toFixed(1)}"
+        stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3"></line>
+      <polyline points="${line}" fill="none" stroke="var(--rule)" stroke-width="1.6"
+        stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+      <circle cx="${x(pts.length - 1).toFixed(1)}" cy="${y(last.idx).toFixed(1)}" r="3.5" fill="var(--best)"></circle>
+    </svg>
+    <div class="idx-note">${move >= 0 ? 'Up' : 'Down'}
+      <b class="${move >= 0 ? 'h-rise' : 'h-save'}">${Math.abs(move).toFixed(1)}%</b>
+      since ${fmtDay(pts[0].d)}, across ${last.n} items. Denver Wholesale is excluded — closeout
+      pricing says nothing about food prices generally.</div>`;
+}
+
+const stat = (v, k, alert) =>
+  `<div class="h-stat${alert ? ' alert' : ''}"><span class="v">${v}</span><span class="k">${k}</span></div>`;
+
+function homeStatsHTML(){
+  const sales = ITEMS.filter(it => it.sale).length;
+  const stale = Object.keys(PRICE_DATES || {}).filter(v => (priceAgeDays(v) || 0) >= 30);
+  return `<div class="h-stats">
+    ${stat(ITEMS.length.toLocaleString(), 'ITEMS')}
+    ${stat(Object.keys(VENDORS).length, 'PRICE LISTS')}
+    ${stat(sales, 'ON SALE', sales > 0)}
+    ${stat(stale.length, stale.length === 1 ? 'LIST BEHIND' : 'LISTS BEHIND', stale.length > 0)}
+    ${stat(PRICES_REFRESHED, 'REFRESHED')}
+  </div>`;
+}
+
+function renderHome(el){
+  document.body.dataset.home = '1';
+  el.innerHTML = `<div class="home">
+    <div class="h-top">
+      <div class="wheat"></div>
+      <h2>COUNTRYSIDE LEDGER</h2>
+      ${homeStatsHTML()}
+    </div>
+    <div class="h-nav">
+      <button id="hNavPhoto">PHOTO OF ITEM</button>
+      <button id="hNavOrders">ORDER SHEETS</button>
+      <button id="hNavLists">PRICE LISTS</button>
+    </div>
+    ${sec('hAttn', 'NEEDS ATTENTION', 'things we buy')}
+    ${sec('hSale', 'ON SALE', 'under their usual price')}
+    ${sec('hInv', 'RECENT INVOICES', 'what we last bought')}
+    ${sec('hIdx', 'FOOD PRICES', 'across the price lists')}
+    <div class="h-foot h-sec"><div class="h-empty" style="text-align:center">
+      Search above, or shoot the shelf tag.</div></div>
+  </div>`;
+
+  // the three places worth going from here, without hunting the toolbar
+  $('#hNavPhoto').addEventListener('click', () => $('#btnPhoto').click());
+  $('#hNavOrders').addEventListener('click', () => $('#btnOrders').click());
+  $('#hNavLists').addEventListener('click', () => $('#btnDrawer').click());
+
+  $('#hSale').innerHTML = homeSalesHTML();
+  loadPurchases().then(p => {
+    if (state.query.trim()) return;              // user started typing meanwhile
+    const a = $('#hAttn'), i = $('#hInv');
+    if (a) a.innerHTML = homeAttentionHTML(p);
+    if (i) i.innerHTML = homeInvoicesHTML(p);
+    // fold the attention count into the masthead once we know it
+    const at = p && p.attention;
+    const n = at ? (at.switch || []).length + (at.jump || []).length + (at.gone || []).length : 0;
+    const stats = $('.h-stats');
+    if (stats && n) stats.insertAdjacentHTML('afterbegin', stat(n, 'NEED ATTENTION', true));
+  });
+  loadHistory().then(h => {
+    if (state.query.trim()) return;
+    const el2 = $('#hIdx');
+    if (el2) el2.innerHTML = homeIndexHTML(h);
+  });
+}
+
 function renderResults(){
   const el = $('#results');
   const q = state.query;
   if (!ITEMS.length) return; // still loading / failed — state screen already shown
-  if (!q.trim()){
-    el.innerHTML = `
-      <div class="state">
-        <div class="wheat"></div>
-        <div class="h">THE LEDGER IS OPEN</div>
-        <div class="s">${ITEMS.length.toLocaleString()} items across ${Object.keys(VENDORS).length} price lists.<br>Search an item or item # — or shoot the shelf tag.</div>
-      </div>`;
-    return;
-  }
+  if (!q.trim()){ renderHome(el); return; }
+  delete document.body.dataset.home;   // searching brings the ticket column back
   const groups = searchGroups(q);
   if (!groups.length){
     el.innerHTML = `
@@ -768,6 +1036,7 @@ function nameTokens(name){
       .filter(t => t.length > 2 && !STOP.has(t))
   )];
 }
+const MIN_MATCH = 70;   // cross-vendor matches below this are hidden as noise
 function closestMatch(it, v){
   const brand = new Set((it.brand || '').toLowerCase().split(/[^a-z]+/).filter(Boolean));
   const toks = nameTokens(it.name).filter(t => !brand.has(t)).slice(0, 4);
@@ -788,7 +1057,13 @@ function closestMatch(it, v){
     }
     return b.score - a.score;
   });
-  return {it: band[0].it, sim: band[0].conf};
+  // Below MIN_MATCH the "closest" item is usually just something sharing one
+  // word — Whole Cloves matching a whole chicken, Granulated Sugar matching a
+  // zero-sugar drink. Measured across the catalog, the 60s are almost all junk
+  // and 80+ is reliable; 70 keeps the useful-but-loose middle (Sea Salt finding
+  // an iodized salt) while dropping the nonsense.
+  const best = { it: band[0].it, sim: band[0].conf };
+  return best.sim >= MIN_MATCH ? best : null;
 }
 /* ============================================================
    RENDER — comparison ticket
@@ -959,6 +1234,103 @@ function loadHistory(){
   }
   return historyPending;
 }
+
+/* What we actually bought, off the vendor invoices. Only Denver sends invoice
+   workbooks so far, so most items have no record — the section says so plainly
+   rather than implying we've never bought the thing. */
+/* Purchase history is NOT published — it is the store's own buying record, and
+   this repo is public. On a PC the file sits beside the app; on the phone it is
+   read from the private countryside-orders repo with the same token the order
+   sheets use. No token, no purchase data, and the panels say so. */
+const GH_PURCHASES = 'https://api.github.com/repos/lealan-source/countryside-orders/contents/data/purchases.json';
+let PURCHASES = null, purchasesPending = null, purchasesWhy = '';
+function loadPurchases(){
+  if (PURCHASES) return Promise.resolve(PURCHASES);
+  if (!purchasesPending){
+    purchasesPending = fetch('data/purchases.json')
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('not local')))
+      .catch(() => {
+        const t = photoCfg().gh;
+        if (!t){ purchasesWhy = 'notoken'; return null; }
+        return fetchTimeout(GH_PURCHASES, { headers: ghHeaders(t) }, 20000)
+          .then(r => {
+            if (r.status === 404){ purchasesWhy = 'norepo'; return null; }
+            if (!r.ok){ purchasesWhy = 'denied'; return null; }
+            return r.json().then(j => JSON.parse(b64dec(j.content)));
+          })
+          .catch(() => { purchasesWhy = 'offline'; return null; });
+      })
+      .then(j => (PURCHASES = j));
+  }
+  return purchasesPending;
+}
+const PURCHASES_NOTE = {
+  notoken: 'Your buying history isn’t published — it lives in the private countryside-orders repo. Paste your GitHub token under “Price lists ›” to see it here.',
+  norepo: 'The private countryside-orders repo doesn’t exist yet, so there’s nowhere to read your buying history from.',
+  denied: 'That GitHub token couldn’t read countryside-orders — check it under “Price lists ›”.',
+  offline: 'Couldn’t reach GitHub for your buying history. It’ll load next time you have signal.',
+};
+const INVOICED = { dw: 1 };   // vendors we actually have invoices from
+
+function lastBoughtHTML(it, pur){
+  const recs = (pur && pur.p && pur.p[key(it)] || [])
+    .map(([di, price, qty]) => ({ date: pur.d[di], price, qty }))
+    .sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);   // newest first
+  if (!recs.length){
+    return INVOICED[it.v]
+      ? '<div class="m-none">No record of buying this one.</div>'
+      : `<div class="m-none">No invoices from ${VENDORS[it.v].label} yet, so there's nothing to go on here.</div>`;
+  }
+  const last = recs[0];
+  const ago = Math.round((Date.now() - new Date(last.date + 'T12:00:00')) / 86400000);
+  const agoTxt = ago <= 0 ? 'today' : ago === 1 ? 'yesterday'
+    : ago < 60 ? ago + ' days ago' : Math.round(ago / 30) + ' months ago';
+  const prev = recs.slice(1, 4).map(r => {
+    const d = ((r.price - last.price) / last.price) * 100;
+    return `<div class="lb-prev"><span>${fmtDay(r.date)}${r.qty ? ' · ' + r.qty + ' cs' : ''}</span>
+      <span>${money(r.price)}${Math.abs(d) > 0.5 ? ` <span class="${d > 0 ? 'h-up' : 'h-down'}">${d > 0 ? '+' : ''}${d.toFixed(0)}%</span>` : ''}</span></div>`;
+  }).join('');
+  return `
+    <div class="lb-card">
+      <div class="lb-top">
+        <div>
+          <span class="v-tag" style="background:${VENDORS[it.v].color};display:inline-block">${VENDORS[it.v].name}</span>
+          <div class="lb-when">${fmtDay(last.date)} · ${agoTxt}</div>
+        </div>
+        <div class="lb-amt">${money(last.price)}</div>
+      </div>
+      ${last.qty ? `<div class="lb-qty">${last.qty} case${last.qty === 1 ? '' : 's'} · ${money(last.price * last.qty)} total</div>` : ''}
+      ${prev}
+    </div>`;
+}
+
+/* The ticket comparison, inline — the whole point is not having to leave. */
+function whereToGetHTML(it){
+  const rows = ticketRows(it);
+  if (rows.length < 2) return `<div class="m-none">Only ${VENDORS[it.v].label} carries a close match.</div>`;
+  const priced = rows.filter(r => r.it.perLb && r.it.stock !== 'out');
+  const best = priced.length ? priced.reduce((a, b) => a.it.perLb <= b.it.perLb ? a : b) : null;
+  return rows.map(r => {
+    const o = r.it, pp = perPiece(o);
+    const unit = pp != null ? `${money(pp)}<small>/ea</small>`
+      : o.perLb ? `${money(o.perLb)}<small>/lb</small>` : money(o.price);
+    const sub = pp != null ? `${money(o.price)}${o.units > 1 ? ' · ' + o.units + ' pc' : ''}`
+      : o.perLb ? `${money(o.price)}${o.lbs ? ' · ' + fmtLbs(o.lbs) + ' lb' : ''}` : esc(o.pack || 'each');
+    return `
+      <div class="wv-row${best && r === best ? ' best' : ''}" data-open="${esc(key(o))}">
+        <div class="wv-main">
+          <span class="v-tag" style="background:${VENDORS[o.v].color};display:inline-block">${VENDORS[o.v].name}</span>
+          <span class="wv-name">${esc(o.name)}${r.picked ? ' · your pick' : ' · match ' + r.sim + '%'}${o.sale ? ' · SALE' : ''}${o.stock === 'out' ? ' · OUT' : ''}</span>
+        </div>
+        <div>
+          <div class="wv-price">${unit}</div>
+          <span class="wv-case">${sub}</span>
+          ${best && r === best ? '<span class="wv-best">BEST / LB</span>' : ''}
+        </div>
+        <button class="wv-add" data-add="${esc(key(o))}">+ ADD</button>
+      </div>`;
+  }).join('');
+}
 const fmtDay = iso => new Date(iso + 'T12:00:00')
   .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -1023,39 +1395,70 @@ function openModal(k){
       <button class="m-x" data-close aria-label="Close">✕</button>
     </div>
     <div class="m-img">${it.img ? `<img loading="lazy" src="${imgSrc(it)}" alt="" onerror="this.remove()">` : '<div class="wheat"></div>'}</div>
-    <div class="m-grid">
-      ${gRow('ITEM #', '<span class="mono copyable" data-copy="' + esc(it.sku) + '" title="Tap to copy">#' + esc(it.sku) + '</span>')}
-      ${gRow('VENDOR', `<span class="v-tag" style="background:${vend.color};display:inline-block">${vend.name}</span>`)}
-      ${gRow('BRAND', it.brand ? esc(it.brand) : '')}
-      ${gRow('CATEGORY', it.cat ? esc(it.cat) : '')}
-      ${gRow('PACK', esc(it.pack || 'each'))}
-      ${gRow('PER PIECE', perPiece(it) != null ? `<span class="mono"><b>${money(perPiece(it))}</b>/ea</span>` : '')}
-      ${gRow('PER LB', it.perLb ? `<span class="mono"><b>${money(it.perLb)}</b>/lb</span>` : '')}
-      ${gRow('PRICE', `<span class="mono">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</span>`)}
-      ${gRow('QTY BREAK', it.brk ? '<span class="mono">' + it.brk[0] + '+ @ ' + money(it.brk[1]) + '</span>' : '')}
-      ${gRow('STATUS', it.stock ? '<span class="oos">' + it.stock.toUpperCase() + '</span>' : '')}
-      ${gRow('SALE', it.sale ? '<span class="sale-chip">ON SALE</span>' + (it.was ? ' &nbsp;usually <span class="was">' + money(it.was) + '</span>' : '') : '')}
-      ${gRow('SHELF LIFE', shelf ? esc(shelf) : '')}
+
+    <div class="m-sec">
+      <div class="m-sec-t">WHERE WE GOT IT LAST</div>
+      <div id="mLast"><div class="m-none">Looking…</div></div>
     </div>
-    <div class="m-hist" id="mHist">
-      <div class="h-t">PRICE HISTORY</div>
-      <div class="h-note">Loading…</div>
+
+    <div class="m-sec">
+      <div class="m-sec-t">WHERE WE CAN GET IT</div>
+      ${whereToGetHTML(it)}
     </div>
+
+    <div class="m-sec">
+      <div class="m-sec-t">PRICE HISTORY</div>
+      <div id="mHist"><div class="m-none">Looking…</div></div>
+    </div>
+
+    <div class="m-sec">
+      <div class="m-sec-t">DETAILS</div>
+      <div class="m-grid" style="margin:0">
+        ${gRow('ITEM #', '<span class="mono copyable" data-copy="' + esc(it.sku) + '" title="Tap to copy">#' + esc(it.sku) + '</span>')}
+        ${gRow('VENDOR', `<span class="v-tag" style="background:${vend.color};display:inline-block">${vend.name}</span>`)}
+        ${gRow('BRAND', it.brand ? esc(it.brand) : '')}
+        ${gRow('CATEGORY', it.cat ? esc(it.cat) : '')}
+        ${gRow('PACK', esc(it.pack || 'each'))}
+        ${gRow('PER PIECE', perPiece(it) != null ? `<span class="mono"><b>${money(perPiece(it))}</b>/ea</span>` : '')}
+        ${gRow('PER LB', it.perLb ? `<span class="mono"><b>${money(it.perLb)}</b>/lb</span>` : '')}
+        ${gRow('PRICE', `<span class="mono">${money(it.price)}${it.lbs ? ' · ' + fmtLbs(it.lbs) + ' lb' : ''}</span>`)}
+        ${gRow('QTY BREAK', it.brk ? '<span class="mono">' + it.brk[0] + '+ @ ' + money(it.brk[1]) + '</span>' : '')}
+        ${gRow('STATUS', it.stock ? '<span class="oos">' + it.stock.toUpperCase() + '</span>' : '')}
+        ${gRow('SALE', it.sale ? '<span class="sale-chip">ON SALE</span>' + (it.was ? ' &nbsp;usually <span class="was">' + money(it.was) + '</span>' : '') : '')}
+        ${gRow('SHELF LIFE', shelf ? esc(shelf) : '')}
+      </div>
+    </div>
+
     <div class="m-actions">
-      <button class="btn-pick" id="btnPick">PICK — COMPARE VENDORS</button>
+      <button class="btn-pick" id="btnPick">OPEN FULL TICKET</button>
       <button class="btn-outline" id="btnAddOrder" style="width:100%;height:44px;margin-top:8px;font-family:var(--display);font-size:12.5px;letter-spacing:.12em;cursor:pointer">ADD TO ${vend.name} ORDER</button>
     </div>`;
   $('#modalWrap').classList.add('open');
+  $('#modalCard').scrollTop = 0;
   $('#btnPick').addEventListener('click', () => { closeModal(); openTicket(k, 'modal'); });
   $('#btnAddOrder').addEventListener('click', () => addToOrder(it.v, k));
-  loadHistory().then(h => {
+
+  loadPurchases().then(p => {
     if (modalKey !== k) return;          // another item was opened while this loaded
+    const el = $('#mLast');
+    if (el) el.innerHTML = lastBoughtHTML(it, p);
+  });
+  loadHistory().then(h => {
+    if (modalKey !== k) return;
     const el = $('#mHist');
-    if (el) el.innerHTML = '<div class="h-t">PRICE HISTORY</div>' + historyHTML(it, h);
+    if (el) el.innerHTML = historyHTML(it, h);
   });
 }
 function closeModal(){ $('#modalWrap').classList.remove('open'); }
-$('#modalWrap').addEventListener('click', e => { if (e.target.closest('[data-close]') || e.target.classList.contains('scrim')) closeModal(); });
+$('#modalWrap').addEventListener('click', e => {
+  // + ADD on an inline vendor row — must beat the row's own open handler
+  const add = e.target.closest('[data-add]');
+  if (add){ addToOrder(add.dataset.add.split(':')[0], add.dataset.add); return; }
+  // tapping another vendor's row swaps the whole view over to that item
+  const open = e.target.closest('[data-open]');
+  if (open){ openModal(open.dataset.open); return; }
+  if (e.target.closest('[data-close]') || e.target.classList.contains('scrim')) closeModal();
+});
 
 /* ============================================================
    DRAWER — price lists

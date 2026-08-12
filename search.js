@@ -23,6 +23,39 @@
   const CANDY_SIGNAL = /gumm|jell(?:s|y|ies)|candy/i;
   const CARE_SIGNAL = /toothpaste|tooth\s*powder|soap|shampoo|lotion|deodorant|conditioner|castile/i;
 
+  const NOISE_W = 0.045;    // idf-weighted precision penalty
+  const HEAD_MISS = 0.55;   // multiplier when the item names a DIFFERENT product
+
+  /* ---------- what does this name actually name? ----------
+     "Chocolate Chip Cookies" contains every word of "chocolate chips" but is a
+     cookie. The head of the noun phrase is what decides, and in English it is
+     the last word — "Chicken STRIPS", "Cheddar Cheese POWDER".
+
+     Two vendors don't write it last. Walnut Creek file everything as
+     "Category - Description" ("Spice - Cinnamon Stick"), so their head sits
+     before the dash. Gateway lead with the product noun — "DROPS Chocolate
+     Milk", "COOKIE Mix Chocolate Chip" — so theirs is the first word.
+
+     Gateway's rule was briefly removed: a narrow benchmark preferred last-word
+     because "Cheddar Cheese Powder" heads on powder. That was wrong. Searching
+     "chocolate chips" then lost Gateway's drops entirely, because "Drops
+     Chocolate Milk" heads on MILK if you read it backwards. The aisle query was
+     the better evidence.
+
+     Trailing qualifiers are cut first, so "Sea Salt (Food Grade)" heads on SALT
+     rather than GRADE, and codes like NR3 or 4M are skipped. */
+  function headOf(name, v) {
+    let s = String(name || '');
+    if (v === 'wc') {
+      const dash = s.indexOf(' - ');
+      if (dash > 0) s = s.slice(0, dash);
+    }
+    s = s.replace(/\(.*?\)/g, ' ').split(',')[0];        // drop "(Food Grade)", ", Coarse"
+    const w = tokenize(s).words.filter(t => t.length >= 3 && !/\d/.test(t));
+    if (!w.length) return null;
+    return v === 'gw' ? w[0] : w[w.length - 1];
+  }
+
   const SYN_GROUP = new Map();
   SYNONYMS.forEach((g, i) => g.forEach(w => SYN_GROUP.set(w, i)));
 
@@ -114,6 +147,7 @@
       const headWords = name.words.filter(w => !brandWords.has(w)).slice(0, 2);
       return {
         nameWords: name.words, all, brandWords, sizes, nameSet, catSet, headWords, v: it.v,
+        head: headOf(it.name, it.v),
         candy: CANDY_SIGNAL.test(text) || /candy/i.test(it.cat || ''),
         care: CARE_SIGNAL.test(text),
         upcs: (it.u ? it.u.split('|') : []).map(u => u.replace(/^0+/, '')),
@@ -194,6 +228,9 @@
     const Q = tokenize(q);
     if (!Q.words.length && !Q.sizes.length) return { hits: [], intent: Q.intent };
     const hits = [];
+    const QSET = new Set(Q.words);   // hoisted: was rebuilt per item word
+    // what the SEARCH names — people type natural English, so the head is last
+    const qHead = Q.words.length ? Q.words[Q.words.length - 1] : null;
 
     for (let i = 0; i < ITEMS.length; i++) {
       const m = META[i];
@@ -213,14 +250,21 @@
       if (Q.words.length && coverage < 0.66) continue;
       if (!Q.words.length) coverage = 0.7; // size-only query
 
-      // precision: unmatched item name words are noise; brand words exempt
+      // Precision: unmatched item name words are noise; brand words exempt.
+      // Weighted by idf, because not all leftover words say the same thing. In
+      // "Chocolate Chip Cookies" the leftover is COOKIES — a rare, meaning-
+      // bearing word that makes it a different product from chocolate chips. In
+      // "Milk Chocolate Chips" the leftover is MILK, common and merely a
+      // variety. Counting them equally is why searching a product type returned
+      // everything flavoured with it.
       let noise = 0;
       for (const w of m.nameWords) {
         if (m.brandWords.has(w)) continue;
-        if (creditFor(w, new Set(Q.words))) continue;
-        noise++;
-      }
-      let score = coverage / (1 + 0.035 * noise);
+        if (/\d/.test(w)) continue;   // 1M, 4M, NR3 are pack codes, not words —
+        if (creditFor(w, QSET)) continue;  // and being rare they scored as the
+        noise += (vIdf && vIdf.get(w)) || 2.5;   // heaviest noise of all, which
+      }                                          // buried "Milk Chocolate Chips 1M"
+      let score = coverage / (1 + NOISE_W * noise);
 
       // size agreement: flat bonus (reference-tested value), capped at 1
       if (Q.sizes.length && m.sizes.length) {
@@ -231,6 +275,14 @@
       // head-noun bonus: small tie-breaker for the first non-brand name words
       if (m.headWords.length && Q.words.some(w => m.headWords.includes(w))) {
         score = Math.min(1, score + 0.06);
+      }
+      // Type agreement. If the search named a product and this item's head is a
+      // different product, it is something FLAVOURED with what was asked for —
+      // sea salt peanuts for "sea salt", chocolate chip cookies for "chocolate
+      // chips". Only applied to multi-word searches; a one-word search is broad
+      // on purpose.
+      if (qHead && m.head && Q.words.length > 1 && !creditFor(m.head, QSET)) {
+        score *= HEAD_MISS;
       }
 
       // context weighting with the form-word exemption

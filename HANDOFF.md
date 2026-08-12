@@ -30,12 +30,12 @@ distributors, and build per-vendor order sheets while walking inventory.
 | `Update Prices.cmd` | The weekly price update, start to finish — rebuild, check, ask, publish |
 | `tools/build.js` | Importer: price sheets → catalog. Vendors are detected by what's inside the workbook, not the filename; it refuses to write a catalog that looks broken |
 | `tools/thumbs.js` | Product thumbnails |
-| `tools/search-tests.js` | 29 regression tests, each one a real bug reported from the aisles |
+| `tools/search-tests.js` | 35 regression tests, each one a real bug reported from the aisles. `--dev` runs them against the dev copy |
 | `Price Sheets/`, `Product Images/` | Source data, ~3 GB, gitignored — only on this PC and my external drive |
 
 **Three rules that matter:**
 
-1. Run `node tools/search-tests.js` after touching search or the catalog — all 29 must pass.
+1. Run `node tools/search-tests.js` after touching search or the catalog — all 35 must pass.
 2. Bump `VERSION` in `sw.js` on every deploy.
 3. Never commit `Price Sheets/` or `Product Images/`. The repo is public and the
    Denver Wholesale invoices carry my account number and the store's address.
