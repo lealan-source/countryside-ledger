@@ -72,6 +72,12 @@ const man = JSON.parse(fs.readFileSync(path.join(PROJ, 'manifest.webmanifest'), 
 man.name = 'Countryside Ledger (DEV)';
 man.short_name = 'Ledger DEV';
 man.description = 'Testing copy of the Countryside Ledger — not the real price book.';
+// `id` is resolved against the ORIGIN, not the manifest's folder — so "./" in
+// both copies resolves to the same https://lealan-source.github.io/ and the
+// browser calls dev "already installed". Dev needs an explicit root-relative id.
+// The live manifest's id is deliberately left as-is: changing it would hand the
+// installed Ledger a new identity and orphan it on every device it's on.
+man.id = '/countryside-ledger/dev/';
 fs.writeFileSync(path.join(DEV, 'manifest.webmanifest'), JSON.stringify(man, null, 2) + '\n');
 console.log('  dev/manifest.webmanifest');
 

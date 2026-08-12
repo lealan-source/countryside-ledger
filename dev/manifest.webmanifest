@@ -2,7 +2,7 @@
   "name": "Countryside Ledger (DEV)",
   "short_name": "Ledger DEV",
   "description": "Testing copy of the Countryside Ledger — not the real price book.",
-  "id": "./",
+  "id": "/countryside-ledger/dev/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

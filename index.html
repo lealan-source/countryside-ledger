@@ -131,6 +131,11 @@ body.no-thumbs .thumb{display:none}
 .r-main{flex:1;min-width:0}
 .r-name{font-size:14.5px;font-weight:600;color:var(--ink);line-height:1.25}
 .r-meta{font-size:11.5px;color:var(--ink-soft);margin-top:2px}
+/* The dev copy is an exact duplicate of the live app, so it has to announce
+   itself — otherwise there's no way to tell which one you're holding. */
+.dev-banner{position:sticky;top:0;z-index:200;background:var(--best);color:var(--cream-ink);
+  font-family:var(--display);font-size:10.5px;letter-spacing:.18em;text-align:center;
+  padding:6px 8px;line-height:1.3}
 .pack-chip{display:inline-block;white-space:nowrap;border:1px solid var(--ink-soft);padding:0 4px;font-size:10px;letter-spacing:.06em}
 /* red ink, same as the BEST/LB stamp — a sale is a number that matters */
 .sale-chip{display:inline-block;white-space:nowrap;background:var(--best);color:var(--cream-ink);
@@ -554,6 +559,14 @@ const key = it => it.v + ':' + it.sku;
    dev change to live is then just a file copy. */
 const IN_DEV = /\/dev\//.test(location.pathname);
 const imgSrc = it => it.img ? `${IN_DEV ? '../' : ''}images/${it.v}/${encodeURIComponent(it.sku)}.webp` : null;
+if (IN_DEV){
+  document.title = 'Ledger DEV';
+  document.body.dataset.dev = '1';
+  const band = document.createElement('div');
+  band.className = 'dev-banner';
+  band.textContent = 'DEV COPY — NOTHING HERE AFFECTS THE REAL PRICE BOOK';
+  document.body.prepend(band);
+}
 const thumbHTML = it => `<span class="thumb">${it.img ? `<img loading="lazy" decoding="async" src="${imgSrc(it)}" alt="" onerror="this.remove()">` : ''}</span>`;
 const shelfLine = it => {
   if (!it.shelf) return '';

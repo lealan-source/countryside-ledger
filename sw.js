@@ -10,7 +10,7 @@
    other. This file is byte-identical in both places. */
 const IN_DEV = /\/dev\//.test(self.registration.scope);
 const PREFIX = IN_DEV ? 'csl-dev-' : 'csl-live-';
-const VERSION = PREFIX + 'v24';
+const VERSION = PREFIX + 'v25';
 const RUNTIME = VERSION + '-runtime';
 const LEGACY = 'countryside-ledger-';   // pre-split naming; only live clears it
 const SHELL = [
