@@ -2,9 +2,14 @@
 // Every case is a real aisle-reported bug from the original claude.ai build.
 const fs = require('fs');
 const path = require('path');
-const LedgerSearch = require('../search.js');
+// `node tools/search-tests.js --dev` runs the suite against the dev copy, so a
+// change to the engine can be proved against all 29 aisle bugs BEFORE promoting.
+const DEV = process.argv.includes('--dev');
+const LedgerSearch = require(DEV ? '../dev/search.js' : '../search.js');
+if (DEV) console.log('— running against dev/search.js —\n');
 
-const data = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/catalog.json'), 'utf8'));
+const data = JSON.parse(fs.readFileSync(
+  path.join(__dirname, DEV ? '../dev/data/catalog.json' : '../data/catalog.json'), 'utf8'));
 const ITEMS = data.items.map(a => ({
   v: data.v[a[0]], sku: String(a[1]), name: a[2], brand: a[3], cat: a[4], pack: a[5],
   lbs: a[6], price: a[7], perLb: a[8], bulk: !!a[9], img: !!a[10], shelf: a[11],
