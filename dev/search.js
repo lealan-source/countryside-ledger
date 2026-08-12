@@ -31,12 +31,16 @@
      cookie. The head of the noun phrase is what decides, and in English it is
      the last word — "Chicken STRIPS", "Cheddar Cheese POWDER".
 
-     The one exception is Walnut Creek, who file everything as
+     Two vendors don't write it last. Walnut Creek file everything as
      "Category - Description" ("Spice - Cinnamon Stick"), so their head sits
-     before the dash. Gateway looked like it led with the noun ("Coffee Folgers
-     Medium") and was given its own rule, but measured against the catalog that
-     rule made results WORSE — "Cheddar Cheese Powder" heads on powder, not
-     cheddar — so it was dropped.
+     before the dash. Gateway lead with the product noun — "DROPS Chocolate
+     Milk", "COOKIE Mix Chocolate Chip" — so theirs is the first word.
+
+     Gateway's rule was briefly removed: a narrow benchmark preferred last-word
+     because "Cheddar Cheese Powder" heads on powder. That was wrong. Searching
+     "chocolate chips" then lost Gateway's drops entirely, because "Drops
+     Chocolate Milk" heads on MILK if you read it backwards. The aisle query was
+     the better evidence.
 
      Trailing qualifiers are cut first, so "Sea Salt (Food Grade)" heads on SALT
      rather than GRADE, and codes like NR3 or 4M are skipped. */
@@ -49,7 +53,7 @@
     s = s.replace(/\(.*?\)/g, ' ').split(',')[0];        // drop "(Food Grade)", ", Coarse"
     const w = tokenize(s).words.filter(t => t.length >= 3 && !/\d/.test(t));
     if (!w.length) return null;
-    return w[w.length - 1];
+    return v === 'gw' ? w[0] : w[w.length - 1];
   }
 
   const SYN_GROUP = new Map();
@@ -256,9 +260,10 @@
       let noise = 0;
       for (const w of m.nameWords) {
         if (m.brandWords.has(w)) continue;
-        if (creditFor(w, QSET)) continue;
-        noise += (vIdf && vIdf.get(w)) || 2.5;
-      }
+        if (/\d/.test(w)) continue;   // 1M, 4M, NR3 are pack codes, not words —
+        if (creditFor(w, QSET)) continue;  // and being rare they scored as the
+        noise += (vIdf && vIdf.get(w)) || 2.5;   // heaviest noise of all, which
+      }                                          // buried "Milk Chocolate Chips 1M"
       let score = coverage / (1 + NOISE_W * noise);
 
       // size agreement: flat bonus (reference-tested value), capped at 1
