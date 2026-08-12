@@ -191,6 +191,7 @@ body[data-view="ticket"] .results-page{display:none}
 .btn-ink:active{background:#000}
 .t-foot{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);text-align:center;font-family:var(--serif);font-size:9px;letter-spacing:.34em;color:var(--ink-soft)}
 .t-note{text-align:center;font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--chalk-dim);margin-top:14px}
+.t-stale{color:var(--best)}
 .t-empty{padding:26px 18px 30px;text-align:center}
 .t-empty .wheat{width:130px;margin:6px auto 14px}
 .t-empty .s{font-family:var(--serif);font-style:italic;font-size:13px;color:var(--ink-soft)}
@@ -465,6 +466,27 @@ const VENDORS = {
   dw:{name:'DENVER WHOLESALE', label:'Denver Wholesale', color:'var(--dw)', updated:'Jul 17'},
 };
 let PRICES_REFRESHED = 'Jul 16';
+/* Per-vendor price dates. The five sheets never arrive together, and Denver
+   Wholesale's prices come off our own invoices — so one of these can easily be
+   two months behind the others. Say so on the ticket rather than let a stale
+   number look as current as the rest. */
+let PRICE_DATES = {};
+function priceAgeDays(v){
+  const d = PRICE_DATES[v];
+  if (!d) return null;
+  const days = Math.round((Date.now() - new Date(d + 'T12:00:00')) / 86400000);
+  return isFinite(days) ? days : null;
+}
+function stalePhrase(vendorKeys){
+  const old = [...new Set(vendorKeys)]
+    .map(v => ({ v, days: priceAgeDays(v) }))
+    .filter(x => x.days != null && x.days >= 30)
+    .sort((a, b) => b.days - a.days);
+  if (!old.length) return '';
+  return old.map(x => `${VENDORS[x.v].label} ${x.days >= 60
+    ? Math.round(x.days / 30) + ' months'
+    : Math.round(x.days / 7) + ' weeks'} old`).join(' · ');
+}
 let ITEMS = [];               // {v,sku,name,brand,cat,pack,lbs,price,perLb,bulk,img,shelf,hay}
 const BY_KEY = new Map();     // "dv:153185" → item
 
@@ -560,6 +582,7 @@ async function loadCatalog(){
       PRICES_REFRESHED = new Date(data.generated + 'T12:00:00')
         .toLocaleDateString('en-US', {month:'short', day:'numeric'});
     }
+    PRICE_DATES = data.dates || {};
     renderResults();
   }catch(e){
     $('#results').innerHTML = `
@@ -825,7 +848,7 @@ function renderTicket(){
       </div>
       <div class="serr-b"></div>
     </div>
-    <div class="t-note">${rows.length > 1 ? `Compared ${rows.length} vendors — closest match by name &amp; pack size` : 'Only ' + VENDORS[picked.v].label + ' carries a close match'} · prices refreshed ${PRICES_REFRESHED}</div>`;
+    <div class="t-note">${rows.length > 1 ? `Compared ${rows.length} vendors — closest match by name &amp; pack size` : 'Only ' + VENDORS[picked.v].label + ' carries a close match'} · prices refreshed ${PRICES_REFRESHED}${(() => { const s = stalePhrase(rows.map(r => r.it.v)); return s ? ` · <span class="t-stale">${esc(s)}</span>` : ''; })()}</div>`;
   $('#barNo').textContent = 'Nº ' + t.no;
   $('#btnCopy').addEventListener('click', copySummary);
 }

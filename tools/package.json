@@ -3,7 +3,8 @@
   "private": true,
   "description": "Price-sheet importer and thumbnail generator for the Countryside Ledger",
   "scripts": {
-    "import": "node build.js && node thumbs.js"
+    "import": "node build.js && node thumbs.js",
+    "update": "node update.js"
   },
   "dependencies": {
     "sharp": "^0.35.0",

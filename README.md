@@ -33,16 +33,40 @@ condensed black caps, and red ink marking the numbers that matter.
 
 ## Updating prices
 
-1. Drop the new vendor sheet(s) into `Price Sheets/` (same filenames:
-   `Dutch Valley.xls`, `Frontier.xlsx`, `Gateway.xlsx`, `Walnut Creek.xlsx`).
+1. Drop the new vendor sheet(s) into `Price Sheets/`. **Filenames don't
+   matter** — the importer identifies each vendor by what's inside the
+   workbook. Denver Wholesale invoices go in `Price Sheets/Denver Wholesale/`.
    New product photos go under `Product Images/<Vendor>/` — the importer
    matches them by the SKU at the start of each filename.
-2. In `tools/`: `npm install` (first time only), then `npm run import`.
-   This rebuilds `data/catalog.json` and adds any missing thumbnails.
-3. Bump `VERSION` in `sw.js` (e.g. `v2` → `v3`) so installed apps pick up
-   the change, then commit and push — GitHub Pages redeploys automatically.
+2. Double-click **`Update Prices.cmd`** (or in `tools/`: `npm run update`).
+   It rebuilds the catalog, checks the numbers, shows what changed, and asks
+   before publishing. Saying yes bumps `sw.js`, commits, and pushes.
 
-Or just ask Claude to do it.
+That's the whole weekly job. Or just ask Claude to do it.
+
+### What the checks catch
+
+A vendor who renames a tab or moves a column doesn't crash the importer — it
+quietly yields fewer items or wrong prices, and the store orders on them. So
+before writing the catalog, the importer compares against the one it's about
+to replace and **stops** if a vendor lost more than 10% of its items, or
+vanished entirely. It warns (but continues) about sheets that haven't changed
+since last time, prices that moved more than 25%, and items that disappeared.
+
+If a big change is genuine, re-run with `npm run import -- --force` (or
+`npm run update -- --force`).
+
+### Price freshness
+
+`data/catalog.json` carries a date per vendor — file date for the four price
+sheets, newest invoice date for Denver Wholesale, whose prices are only as
+current as the last time we ordered the item. Any vendor 30+ days behind is
+named in red on the ticket, so a stale number never looks as current as the
+rest. The headline "prices refreshed" date is the *freshest sheet*, not the
+day you rebuilt — rebuilding old sheets must not make the app claim today's
+prices.
+
+`npm run import` alone rebuilds without publishing.
 
 Vendor sheet quirks the importer handles: Dutch Valley's price book gives
 per-lb prices directly on bulk rows; Gateway's `LB/Qty` column is pounds for

@@ -7,6 +7,62 @@ const path = require('path');
 const PROJ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 const SHEETS = PROJ + '/Price Sheets';
 const IMAGES = PROJ + '/Product Images';
+const FORCE = process.argv.includes('--force');
+
+/* ---------- which vendor is this file? ----------
+   Filenames are whatever the vendor happened to call the attachment, so the
+   vendor is identified by what's INSIDE the workbook — tab names first, and
+   for Walnut Creek (whose tab is just "Sheet1") the header row. */
+const VENDOR_NAME = { dv: 'Dutch Valley', gw: 'Gateway', wc: 'Walnut Creek', fr: 'Frontier', dw: 'Denver Wholesale' };
+function detectVendor(wb) {
+  const tabs = wb.SheetNames;
+  if (tabs.includes('Item Price List Price Book')) return 'dv';
+  if (tabs.includes('Annual_Catalog')) return 'fr';
+  if (tabs.includes('Invoice Summary') && tabs.includes('Items')) return 'dw';
+  for (const t of tabs) {
+    const row0 = (XLSX.utils.sheet_to_json(wb.Sheets[t], { header: 1, defval: '' })[0] || [])
+      .map(x => String(x).toLowerCase().trim());
+    if (row0.includes('item number') && row0.includes('product name') && row0.includes('pack size')) return 'wc';
+  }
+  if (tabs.includes('Products')) return 'gw';
+  return null;
+}
+const ymd = d => new Date(d).toISOString().slice(0, 10);
+
+/* Walk Price Sheets/ (and one level of subfolders) and sort every workbook to
+   its vendor. Denver Wholesale collects many invoices; the rest take one file,
+   newest wins if the folder somehow holds two. */
+function discoverSheets() {
+  const found = { dw: [] };
+  const skipped = [];
+  const stack = [SHEETS];
+  while (stack.length) {
+    const dir = stack.pop();
+    if (!fs.existsSync(dir)) continue;
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { stack.push(p); continue; }
+      if (!/\.xlsx?$/i.test(e.name) || /^~\$/.test(e.name)) continue;
+      let wb, v;
+      try { wb = XLSX.readFile(p); v = detectVendor(wb); }
+      catch (err) { skipped.push(e.name + ' (unreadable: ' + err.message + ')'); continue; }
+      if (!v) { skipped.push(e.name + ' (not a recognized vendor sheet)'); continue; }
+      const rec = { file: e.name, path: p, date: ymd(fs.statSync(p).mtime), wb };
+      if (v === 'dw') found.dw.push(rec);
+      else if (!found[v] || rec.date > found[v].date) found[v] = rec;
+    }
+  }
+  return { found, skipped };
+}
+
+const { found: SRC, skipped: SKIPPED } = discoverSheets();
+console.log('— price sheets found —');
+for (const v of ['dv', 'gw', 'wc', 'fr']) {
+  console.log(`  ${VENDOR_NAME[v].padEnd(16)} ${SRC[v] ? SRC[v].file + '  (' + SRC[v].date + ')' : '** MISSING **'}`);
+}
+console.log(`  ${VENDOR_NAME.dw.padEnd(16)} ${SRC.dw.length ? SRC.dw.length + ' invoice file(s)' : '** MISSING **'}`);
+for (const s of SKIPPED) console.log('  ignored: ' + s);
+console.log('');
 
 /* ---------- pack parsing ----------
    parsePack(s) → {total, unit, mult} in pounds (or null)
@@ -71,9 +127,9 @@ function isBulk({ pack, cat, byThePound, count }) {
 const offers = [];
 
 /* ---------- Dutch Valley ---------- */
-{
+if (SRC.dv) {
   const rows = XLSX.utils.sheet_to_json(
-    XLSX.readFile(SHEETS + '/Dutch Valley.xls').Sheets['Item Price List Price Book'],
+    SRC.dv.wb.Sheets['Item Price List Price Book'],
     { header: 1, raw: true, defval: '' });
   let cat = '';
   for (const r of rows) {
@@ -105,9 +161,9 @@ const offers = [];
 }
 
 /* ---------- Gateway ---------- */
-{
+if (SRC.gw) {
   const rows = XLSX.utils.sheet_to_json(
-    XLSX.readFile(SHEETS + '/Gateway.xlsx').Sheets['Products'],
+    SRC.gw.wb.Sheets['Products'],
     { header: 1, raw: true, defval: '' });
   let cat = '';
   let lastOffer = null;
@@ -147,9 +203,9 @@ const offers = [];
 }
 
 /* ---------- Walnut Creek ---------- */
-{
+if (SRC.wc) {
   const rows = XLSX.utils.sheet_to_json(
-    XLSX.readFile(SHEETS + '/Walnut Creek.xlsx').Sheets['Sheet1'],
+    SRC.wc.wb.Sheets[SRC.wc.wb.SheetNames[0]],
     { header: 1, raw: true, defval: '' });
   let lbMismatch = 0;
   for (const r of rows.slice(1)) {
@@ -180,9 +236,9 @@ const offers = [];
 }
 
 /* ---------- Frontier ---------- */
-{
+if (SRC.fr) {
   const rows = XLSX.utils.sheet_to_json(
-    XLSX.readFile(SHEETS + '/Frontier.xlsx').Sheets['Annual_Catalog'],
+    SRC.fr.wb.Sheets['Annual_Catalog'],
     { header: 1, raw: true, defval: '' });
   for (const r of rows.slice(3)) {
     const sku = String(r[1]).trim();
@@ -215,15 +271,16 @@ const offers = [];
    Each invoice's Items sheet carries the full item spec + case price.
    Dedupe by DWF ID#; the newest invoice date wins the price.
    Everything is prepacked — Denver Wholesale carries no bulk. */
+let dwNewestInvoice = '';
 {
-  const dir = SHEETS + '/Denver Wholesale';
-  if (fs.existsSync(dir)) {
+  if (SRC.dw.length) {
     const byId = new Map();
-    for (const f of fs.readdirSync(dir).filter(x => /\.xlsx?$/i.test(x))) {
-      const wb = XLSX.readFile(path.join(dir, f));
+    for (const rec of SRC.dw) {
+      const wb = rec.wb;
       const inv = XLSX.utils.sheet_to_json(wb.Sheets['Invoice Summary'] || {}, { header: 1, raw: true, defval: '' });
       const dateRow = inv.find(r => String(r[0]).toLowerCase() === 'invoice date');
       const date = dateRow ? String(dateRow[1]) : '';
+      if (date > dwNewestInvoice) dwNewestInvoice = date;
       const its = XLSX.utils.sheet_to_json(wb.Sheets['Items'] || {}, { header: 1, raw: true, defval: '' });
       for (const r of its.slice(1)) {
         const sku = String(r[0]).trim();
@@ -425,8 +482,100 @@ const items = offers.map(o => [
   o.lbs, o.price, o.perLb, o.bulk ? 1 : 0, o.img ? 1 : 0, o.shelfDays,
   o.stock, o.upcs.join('|'), o.brk || 0, o.shelfEst || 0, o.units || 0,
 ]);
+
+/* ---------- how fresh is each vendor? ----------
+   Per-vendor, because the five sheets never arrive the same week. Denver
+   Wholesale dates from its newest invoice, not the file — its prices are only
+   as current as the last time we actually ordered the item. The headline
+   `generated` is the freshest sheet, NOT today: rebuilding old sheets must not
+   make the app claim today's prices. */
+const dates = {};
+for (const v of ['dv', 'gw', 'wc', 'fr']) if (SRC[v]) dates[v] = SRC[v].date;
+if (SRC.dw.length) {
+  const d = new Date(dwNewestInvoice);
+  dates.dw = isFinite(d) && dwNewestInvoice ? ymd(d) : ymd(Math.max(...SRC.dw.map(r => +new Date(r.date))));
+}
+const generated = Object.values(dates).sort().pop() || ymd(Date.now());
+
+/* ---------- guard: don't ship a broken import ----------
+   A vendor who renames a tab or moves a column, or a download that stopped
+   halfway, doesn't crash this importer — it just quietly yields fewer items or
+   wrong prices, and the store orders on them. Compare against the catalog we're
+   about to overwrite and refuse the obviously-wrong ones. --force overrides. */
+const CAT_PATH = PROJ + '/data/catalog.json';
+let prev = null;
+try {
+  const p = JSON.parse(fs.readFileSync(CAT_PATH, 'utf8'));
+  prev = { dates: p.dates || {}, byKey: new Map(), counts: {} };
+  for (const a of p.items) {
+    const v = p.v[a[0]];
+    prev.byKey.set(v + ':' + a[1], { name: a[2], price: a[7] });
+    prev.counts[v] = (prev.counts[v] || 0) + 1;
+  }
+} catch (e) { /* first build, or no catalog yet — nothing to compare */ }
+
+const blockers = [], warnings = [];
+if (prev) {
+  const now = {};
+  for (const v of V) now[v] = offers.filter(o => o.v === v).length;
+  for (const v of V) {
+    const was = prev.counts[v] || 0, is = now[v];
+    if (!was) continue;
+    if (!is) blockers.push(`${VENDOR_NAME[v]} has NO items this build (had ${was}). Its sheet is missing or unreadable.`);
+    else if (is < was * 0.9) blockers.push(`${VENDOR_NAME[v]} dropped to ${is} items from ${was} (−${Math.round((1 - is / was) * 100)}%). Likely a partial download or a changed layout.`);
+  }
+  const wasTotal = Object.values(prev.counts).reduce((a, b) => a + b, 0);
+  if (offers.length < wasTotal * 0.9) blockers.push(`Catalog dropped to ${offers.length} items from ${wasTotal} overall.`);
+
+  for (const v of V) {
+    if (prev.dates[v] && dates[v] && prev.dates[v] === dates[v]) {
+      warnings.push(`${VENDOR_NAME[v]} is unchanged since the last build (${dates[v]}) — did that sheet get updated?`);
+    }
+  }
+
+  const moved = [];
+  let gone = 0, added = 0;
+  const seen = new Set();
+  for (const o of offers) {
+    const k = o.v + ':' + o.sku;
+    seen.add(k);
+    const was = prev.byKey.get(k);
+    if (!was) { added++; continue; }
+    if (was.price > 0 && o.price > 0) {
+      const pct = (o.price - was.price) / was.price;
+      if (Math.abs(pct) > 0.25) moved.push({ pct, v: o.v, name: o.name, from: was.price, to: o.price });
+    }
+  }
+  for (const k of prev.byKey.keys()) if (!seen.has(k)) gone++;
+  if (moved.length) {
+    moved.sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
+    warnings.push(`${moved.length} price${moved.length === 1 ? '' : 's'} moved more than 25% — largest:`);
+    for (const m of moved.slice(0, 10)) {
+      warnings.push(`    ${(m.pct > 0 ? '+' : '') + Math.round(m.pct * 100)}%  ${m.v}  $${m.from} → $${m.to}  ${m.name.slice(0, 52)}`);
+    }
+  }
+  if (gone) warnings.push(`${gone} item${gone === 1 ? '' : 's'} no longer listed by their vendor.`);
+  if (added) warnings.push(`${added} item${added === 1 ? '' : 's'} are new.`);
+}
+
+if (warnings.length) {
+  console.log('— worth a look —');
+  for (const w of warnings) console.log('  ' + w);
+  console.log('');
+}
+if (blockers.length) {
+  console.log('— STOPPED, catalog NOT written —');
+  for (const b of blockers) console.log('  ✗ ' + b);
+  if (FORCE) console.log('\n  --force given, writing anyway.\n');
+  else {
+    console.log('\n  Fix the sheet(s) above and run again. If these changes are real,');
+    console.log('  re-run with:  npm run import -- --force\n');
+    process.exit(1);
+  }
+}
+
 fs.mkdirSync(PROJ + '/data', { recursive: true });
-fs.writeFileSync(PROJ + '/data/catalog.json', JSON.stringify({ v: V, generated: '2026-07-16', items }));
+fs.writeFileSync(CAT_PATH, JSON.stringify({ v: V, generated, dates, items }));
 fs.writeFileSync(__dirname + '/thumb-jobs.json', JSON.stringify(jobs));
 
 /* ---------- report ---------- */
