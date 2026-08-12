@@ -6,3 +6,9 @@ publish.cmd
 Product Images/
 Price Sheets/
 tools/node_modules/
+
+# Purchase history is the store's own buying record — what we stock, in what
+# volume, at what cost. Vendor price lists are fine to publish; this is not.
+# Served to the app from the private countryside-orders repo instead.
+data/purchases.json
+dev/data/purchases.json
