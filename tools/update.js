@@ -9,6 +9,9 @@ const path = require('path');
 const PROJ = path.resolve(__dirname, '..');
 const SW = path.join(PROJ, 'sw.js');
 const FORCE = process.argv.includes('--force');
+// Explicit list — never `git add -A`, so Price Sheets and Product Images can't
+// ride along even if .gitignore were ever wrong.
+const PUBLISH = ['data/catalog.json', 'data/history.json', 'images', 'sw.js', 'Price Changes.md'];
 
 const run = (cmd, args, opts) =>
   spawnSync(cmd, args, { cwd: PROJ, stdio: 'inherit', ...opts });
@@ -34,14 +37,14 @@ if (thumbs.status !== 0) {
 
 /* ---------- 3. what actually changed? ---------- */
 rule();
-const changed = capture('git', ['status', '--porcelain', '--', 'data/catalog.json', 'images', 'sw.js']);
+const changed = capture('git', ['status', '--porcelain', '--', ...PUBLISH]);
 if (!changed) {
   console.log('Prices rebuilt and nothing changed — the app is already up to date.');
   console.log('Nothing to publish.');
   process.exit(0);
 }
 console.log('Ready to publish:\n');
-console.log(capture('git', ['diff', '--stat', '--', 'data/catalog.json', 'images', 'sw.js']) || '  (new files)');
+console.log(capture('git', ['diff', '--stat', '--', ...PUBLISH]) || '  (new files)');
 
 const cat = JSON.parse(fs.readFileSync(path.join(PROJ, 'data/catalog.json'), 'utf8'));
 const NAME = { dv: 'Dutch Valley', gw: 'Gateway', wc: 'Walnut Creek', fr: 'Frontier', dw: 'Denver Wholesale' };
@@ -79,9 +82,7 @@ function publish() {
   fs.writeFileSync(SW, sw.replace(m[0], `const VERSION = 'countryside-ledger-v${next}';`));
   console.log(`\nservice worker: v${m[1]} → v${next}`);
 
-  // explicit paths only — never `git add -A`, so Price Sheets and Product
-  // Images can't ride along even if .gitignore were ever wrong
-  run('git', ['add', '--', 'data/catalog.json', 'images', 'sw.js']);
+  run('git', ['add', '--', ...PUBLISH]);
   const msg = `Prices updated — ${Object.entries(cat.dates || {}).map(([v, d]) => `${v} ${d}`).join(', ')}`;
   const commit = run('git', ['commit', '-m', msg]);
   if (commit.status !== 0) { console.log('\nCommit failed — nothing pushed.'); process.exit(1); }

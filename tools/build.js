@@ -477,11 +477,6 @@ for (const o of offers) {
 }
 
 const V = ['dv', 'gw', 'wc', 'fr', 'dw'];
-const items = offers.map(o => [
-  V.indexOf(o.v), o.sku, o.name, o.brand, o.cat, o.pack,
-  o.lbs, o.price, o.perLb, o.bulk ? 1 : 0, o.img ? 1 : 0, o.shelfDays,
-  o.stock, o.upcs.join('|'), o.brk || 0, o.shelfEst || 0, o.units || 0,
-]);
 
 /* ---------- how fresh is each vendor? ----------
    Per-vendor, because the five sheets never arrive the same week. Denver
@@ -496,6 +491,112 @@ if (SRC.dw.length) {
   dates.dw = isFinite(d) && dwNewestInvoice ? ymd(d) : ymd(Math.max(...SRC.dw.map(r => +new Date(r.date))));
 }
 const generated = Object.values(dates).sort().pop() || ymd(Date.now());
+
+/* ---------- price history & sales ----------
+   No vendor marks sales on their sheet, so a sale is worked out by comparing
+   today's price against what this item has actually cost us before. That means
+   history IS the sale detector, and it can only look forward — the first build
+   just lays the baseline down.
+
+   Deliberately NOT seeded from git: the stored catalogs are all the same July
+   prices and differ only by code changes (the per-piece pricing rewrite, for
+   one), so replaying them would invent enormous fake sales on day one.
+
+   Stored as a date table plus [dateIndex, price] pairs, and only when a price
+   actually moves — a stable item keeps one entry forever. */
+fs.mkdirSync(PROJ + '/data', { recursive: true });
+const HIST_PATH = PROJ + '/data/history.json';
+const SALE_DROP = 0.10;   // 10% under the usual price reads as a sale
+const BASELINE_N = 5;     // "usual price" = median of the last 5 recorded prices
+
+let hist = { d: [], h: {} };
+try {
+  const raw = JSON.parse(fs.readFileSync(HIST_PATH, 'utf8'));
+  if (Array.isArray(raw.d) && raw.h) hist = raw;
+} catch (e) { /* first run — start the record here */ }
+
+const dateIdx = iso => {
+  let i = hist.d.indexOf(iso);
+  if (i < 0) { hist.d.push(iso); i = hist.d.length - 1; }
+  return i;
+};
+const median = a => {
+  const s = [...a].sort((x, y) => x - y);
+  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+};
+
+const changes = [];
+let seeded = 0, onSale = 0;
+for (const o of offers) {
+  if (!(o.price > 0)) continue;
+  const k = o.v + ':' + o.sku;
+  const obsDate = dates[o.v] || generated;
+  const entries = hist.h[k] || (hist.h[k] = []);
+  const prior = entries.slice(-BASELINE_N).map(e => e[1]);
+  const last = entries.length ? entries[entries.length - 1][1] : null;
+
+  if (prior.length) {
+    const usual = median(prior);
+    if (usual > 0 && o.price <= usual * (1 - SALE_DROP)) {
+      o.sale = 1;
+      o.was = +usual.toFixed(2);
+      onSale++;
+    }
+  } else seeded++;
+
+  if (last === null || Math.abs(last - o.price) > 0.0001) {
+    entries.push([dateIdx(obsDate), o.price]);
+    if (last !== null) {
+      changes.push({ v: o.v, sku: o.sku, name: o.name, from: last, to: o.price,
+        pct: (o.price - last) / last });
+    }
+  }
+}
+fs.writeFileSync(HIST_PATH, JSON.stringify(hist));
+
+/* ---------- what actually changed this week ---------- */
+if (seeded) console.log(`price history: ${seeded} item${seeded === 1 ? '' : 's'} recorded for the first time (no sales can show until they move)`);
+if (changes.length) {
+  changes.sort((a, b) => a.pct - b.pct);
+  console.log(`\n— price changes (${changes.length}) —`);
+  for (const v of V) {
+    const mine = changes.filter(c => c.v === v);
+    if (!mine.length) continue;
+    const up = mine.filter(c => c.pct > 0).length;
+    console.log(`  ${VENDOR_NAME[v]} — ${mine.length} change${mine.length === 1 ? '' : 's'} (${up} up, ${mine.length - up} down)`);
+    for (const c of mine.slice(0, 6)) {
+      console.log(`    ${(c.pct > 0 ? '+' : '') + (c.pct * 100).toFixed(0)}%`.padEnd(9) +
+        `$${c.from.toFixed(2)} → $${c.to.toFixed(2)}  ${c.name.slice(0, 46)}`);
+    }
+    if (mine.length > 6) console.log(`    …and ${mine.length - 6} more`);
+  }
+}
+if (onSale) console.log(`\n${onSale} item${onSale === 1 ? '' : 's'} are ${SALE_DROP * 100}%+ under their usual price — flagged as ON SALE`);
+
+/* a readable record that travels with the repo */
+{
+  const lines = [`# Price changes — ${generated}`, ''];
+  if (!changes.length) lines.push('No price changes this build.', '');
+  for (const v of V) {
+    const mine = changes.filter(c => c.v === v);
+    if (!mine.length) continue;
+    lines.push(`## ${VENDOR_NAME[v]} — ${mine.length}`, '');
+    lines.push('| Change | Was | Now | Item |', '| --- | --- | --- | --- |');
+    for (const c of mine) {
+      lines.push(`| ${(c.pct > 0 ? '+' : '') + (c.pct * 100).toFixed(0)}% | $${c.from.toFixed(2)} | $${c.to.toFixed(2)} | ${c.name.replace(/\|/g, '/')} |`);
+    }
+    lines.push('');
+  }
+  const sales = offers.filter(o => o.sale);
+  if (sales.length) {
+    lines.push(`## On sale now — ${sales.length}`, '');
+    lines.push('| Vendor | Usual | Now | Item |', '| --- | --- | --- | --- |');
+    for (const s of sales.sort((a, b) => a.price / a.was - b.price / b.was)) {
+      lines.push(`| ${VENDOR_NAME[s.v]} | $${s.was.toFixed(2)} | $${s.price.toFixed(2)} | ${s.name.replace(/\|/g, '/')} |`);
+    }
+  }
+  fs.writeFileSync(PROJ + '/Price Changes.md', lines.join('\n') + '\n');
+}
 
 /* ---------- guard: don't ship a broken import ----------
    A vendor who renames a tab or moves a column, or a download that stopped
@@ -574,7 +675,12 @@ if (blockers.length) {
   }
 }
 
-fs.mkdirSync(PROJ + '/data', { recursive: true });
+const items = offers.map(o => [
+  V.indexOf(o.v), o.sku, o.name, o.brand, o.cat, o.pack,
+  o.lbs, o.price, o.perLb, o.bulk ? 1 : 0, o.img ? 1 : 0, o.shelfDays,
+  o.stock, o.upcs.join('|'), o.brk || 0, o.shelfEst || 0, o.units || 0,
+  o.sale ? 1 : 0, o.was || 0,
+]);
 fs.writeFileSync(CAT_PATH, JSON.stringify({ v: V, generated, dates, items }));
 fs.writeFileSync(__dirname + '/thumb-jobs.json', JSON.stringify(jobs));
 

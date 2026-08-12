@@ -68,12 +68,68 @@ prices.
 
 `npm run import` alone rebuilds without publishing.
 
+### Sales and price history
+
+None of the five vendors mark sales on their sheets — Dutch Valley's `BREAK`
+and Walnut Creek's `1 CS / 10 CS` are volume tiers, not sales. So a sale is
+worked out from the item's own history: `data/history.json` records a price
+point every time a price actually *moves*, and anything now selling at 10% or
+more under the median of its last five recorded prices is flagged **ON SALE**,
+with its usual price shown struck through.
+
+This only looks forward. The first build lays down a baseline and can't show
+any sales; the picture fills in as prices move. It also decays correctly — once
+a lower price becomes the norm, the median follows it down and the flag clears.
+
+History is deliberately **not** seeded from git. The stored catalogs are all
+the same July prices and differ only by code changes, so replaying them would
+invent enormous fake sales.
+
+Opening any item shows its price history — a chart plus every recorded price
+with the change between them. `history.json` is ~107 KB gzipped and isn't
+precached, so it's fetched the first time someone opens an item and cached from
+then on; the app works normally without it.
+
+`Price Changes.md` is rewritten each build: what moved, by how much, per
+vendor, plus everything currently on sale.
+
 Vendor sheet quirks the importer handles: Dutch Valley's price book gives
 per-lb prices directly on bulk rows; Gateway's `LB/Qty` column is pounds for
 bulk foods but unit-counts for supplies; Walnut Creek's list price is per
 pound; Frontier prices per each with case counts. Cross-vendor comparison on
 the ticket is a runtime closest-match by name — each row shows the matched
 item and its match %, so check pack sizes before ordering.
+
+## The dev copy
+
+A full second copy of the app lives in `dev/` and publishes alongside the real
+one at **https://lealan-source.github.io/countryside-ledger/dev/** — install it
+on the phone and it appears as a separate app, "Ledger DEV". Break it as much
+as you like; the live price book is untouched.
+
+| | |
+| --- | --- |
+| `npm run dev` | Create or update the dev copy (never overwrites your dev edits) |
+| `npm run dev -- --reset` | Throw away dev's code changes, re-copy from live |
+| `npm run dev:data` | Refresh dev's catalog + history from live |
+| `npm run promote` | Copy dev's code over the live app, ready to publish |
+
+**dev keeps its own catalog** (3.4 MB), so changing the data format there can't
+break the live app. It **shares** the 173 MB of thumbnails through a `../images/`
+path that `index.html` works out at runtime — which is also why `index.html` and
+`sw.js` are byte-identical in both copies, making promotion a plain file copy.
+
+### Why the service worker namespaces its caches
+
+Cache storage is per-**origin**, not per-folder, and the old service worker
+deleted every cache that wasn't its own. Both copies live on
+`lealan-source.github.io`, so opening the dev app would have wiped the live
+app's offline cache — the ledger would then have failed in the aisles with no
+signal. Each copy now prefixes its caches (`csl-live-` / `csl-dev-`, deliberately
+not prefixes of each other) and only ever cleans up its own.
+
+`Update Prices.cmd` publishes the live app only; dev's data is refreshed
+explicitly with `npm run dev:data`.
 
 ## Moving the project to another PC
 

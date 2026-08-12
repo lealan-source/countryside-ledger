@@ -4,7 +4,10 @@
   "description": "Price-sheet importer and thumbnail generator for the Countryside Ledger",
   "scripts": {
     "import": "node build.js && node thumbs.js",
-    "update": "node update.js"
+    "update": "node update.js",
+    "dev": "node make-dev.js",
+    "dev:data": "node make-dev.js --data",
+    "promote": "node make-dev.js --promote"
   },
   "dependencies": {
     "sharp": "^0.35.0",
