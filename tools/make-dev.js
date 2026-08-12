@@ -14,7 +14,7 @@ const path = require('path');
 const PROJ = path.resolve(__dirname, '..');
 const DEV = path.join(PROJ, 'dev');
 const CODE = ['index.html', 'search.js', 'sw.js'];
-const DATA = ['catalog.json', 'history.json'];
+const DATA = ['catalog.json', 'history.json', 'purchases.json'];
 
 const mode = process.argv.find(a => /^--/.test(a)) || '';
 const rel = p => path.relative(PROJ, p).replace(/\\/g, '/');

@@ -125,6 +125,10 @@ function isBulk({ pack, cat, byThePound, count }) {
 }
 
 const offers = [];
+/* Confirmed purchases pulled off invoices — "where we got it last".
+   Only Denver sends invoice workbooks today; when another vendor's arrive,
+   parse them into this same shape and everything downstream just works. */
+const purchases = [];
 
 /* ---------- Dutch Valley ---------- */
 if (SRC.dv) {
@@ -288,6 +292,10 @@ let dwNewestInvoice = '';
         const name = clean(r[3]);
         const price = num(r[14]);
         if (!name || price == null) continue;
+        // what we ACTUALLY bought, not just what it cost — the invoice knows the
+        // date and the quantity, and until now we threw both away
+        const qty = num(r[15]);
+        if (date) purchases.push({ v: 'dw', sku, name, date, price, qty: qty || null });
         const prev = byId.get(sku);
         if (prev && prev.date > date) continue;
         const pack = clean(r[4]);
@@ -553,6 +561,29 @@ for (const o of offers) {
   }
 }
 fs.writeFileSync(HIST_PATH, JSON.stringify(hist));
+
+/* ---------- what we actually bought, and when ----------
+   Same date-table shape as the price history. Written even when only one vendor
+   sends invoices, so the app can answer "where did we get this last?" for the
+   items it does know about and say nothing for the rest. */
+{
+  const dts = [];
+  const dIdx = iso => { let i = dts.indexOf(iso); if (i < 0) { dts.push(iso); i = dts.length - 1; } return i; };
+  const byKey = {};
+  for (const p of purchases) {
+    const k = p.v + ':' + p.sku;
+    (byKey[k] || (byKey[k] = [])).push([dIdx(p.date), p.price, p.qty || 0]);
+  }
+  for (const k of Object.keys(byKey)) {
+    byKey[k].sort((a, b) => (dts[a[0]] < dts[b[0]] ? -1 : dts[a[0]] > dts[b[0]] ? 1 : 0));
+  }
+  fs.writeFileSync(PROJ + '/data/purchases.json', JSON.stringify({ d: dts, p: byKey }));
+  const vendors = [...new Set(purchases.map(p => p.v))];
+  console.log(`purchase records: ${purchases.length} line item${purchases.length === 1 ? '' : 's'} across ` +
+    `${Object.keys(byKey).length} product${Object.keys(byKey).length === 1 ? '' : 's'} ` +
+    `from ${vendors.map(v => VENDOR_NAME[v]).join(', ') || 'no vendors'}` +
+    (vendors.length < V.length ? `  (no invoices yet from ${V.filter(v => !vendors.includes(v)).map(v => VENDOR_NAME[v]).join(', ')})` : ''));
+}
 
 /* ---------- what actually changed this week ---------- */
 if (seeded) console.log(`price history: ${seeded} item${seeded === 1 ? '' : 's'} recorded for the first time (no sales can show until they move)`);
