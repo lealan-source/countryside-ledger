@@ -12,3 +12,6 @@ tools/node_modules/
 # Served to the app from the private countryside-orders repo instead.
 data/purchases.json
 dev/data/purchases.json
+
+# GitHub token for uploading purchase history to the private repo
+tools/.gh-token

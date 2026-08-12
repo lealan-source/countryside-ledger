@@ -7,7 +7,8 @@
     "update": "node update.js",
     "dev": "node make-dev.js",
     "dev:data": "node make-dev.js --data",
-    "promote": "node make-dev.js --promote"
+    "promote": "node make-dev.js --promote",
+    "publish-private": "node publish-private.js"
   },
   "dependencies": {
     "sharp": "^0.35.0",

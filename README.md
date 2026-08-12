@@ -100,6 +100,25 @@ pound; Frontier prices per each with case counts. Cross-vendor comparison on
 the ticket is a runtime closest-match by name — each row shows the matched
 item and its match %, so check pack sizes before ordering.
 
+## Purchase history is private
+
+`data/purchases.json` — what we bought, when, in what quantity, at what price —
+is **gitignored and never published**. This repo is public, and that file is the
+store's own buying record rather than a vendor price list.
+
+The app reads it from the private `countryside-orders` repo using the same
+GitHub token the order sheets use. To put it there:
+
+1. Create a fine-grained token with **Contents read & write** on
+   `countryside-orders`, save it as one line in `tools\.gh-token` (gitignored).
+2. `npm run publish-private` after each import.
+
+Without a token the home page's invoice and attention panels say so and
+everything else works normally.
+
+`data/history.json` — what vendors *charge* over time — stays public. It is the
+same class of data as the catalog; the quantities are the part that's ours.
+
 ## The dev copy
 
 A full second copy of the app lives in `dev/` and publishes alongside the real

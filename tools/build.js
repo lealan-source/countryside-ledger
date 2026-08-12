@@ -96,6 +96,12 @@ function packLabel(s) {
   return m ? m[1].replace(/\s+/g, ' ').trim() : '';
 }
 const clean = s => String(s).replace(/\s+/g, ' ').trim();
+// name → distinctive words, for the "is anyone cheaper?" lookup
+const NAME_STOP = new Set(['of', 'the', 'and', 'with', 'in', 'for', 'to', 'no']);
+const tokenizeName = name => [...new Set(String(name).toLowerCase()
+  .replace(/\d+(\.\d+)?\s*[\/x-]?\s*\d*(\.\d+)?\s*(lbs?|oz|ct|#|gal|fl)\b\.?/g, ' ')
+  .replace(/[^a-z\s]/g, ' ').split(/\s+/)
+  .filter(t => t.length > 2 && !NAME_STOP.has(t)))];
 const num = x => { const n = typeof x === 'number' ? x : parseFloat(String(x).replace(/[$,]/g, '')); return isFinite(n) ? n : null; };
 const ctUnits = s => {
   const m2 = String(s).match(/(\d+)\s*\/\s*(\d+)\s*ct/i);
@@ -533,6 +539,34 @@ const median = a => {
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 };
 
+/* Backfill real price-over-time from the invoice dates we already parse. An
+   invoice from February states what that item cost in February — that is VENDOR
+   pricing, the same class of data as the catalog, so it belongs in the public
+   price history. The quantities on the same rows are ours and stay out of it.
+   Without this the history would hold a single point per item and any trend
+   chart would be one dot. */
+{
+  const byKey = new Map();
+  for (const p of purchases) {
+    if (!(p.price > 0) || !p.date) continue;
+    const k = p.v + ':' + p.sku;
+    if (!byKey.has(k)) byKey.set(k, new Map());
+    byKey.get(k).set(p.date, p.price);   // one price per item per invoice date
+  }
+  let added = 0;
+  for (const [k, obs] of byKey) {
+    const have = new Set((hist.h[k] || []).map(e => hist.d[e[0]]));
+    const fresh = [...obs].filter(([d]) => !have.has(d)).sort((a, b) => a[0] < b[0] ? -1 : 1);
+    if (!fresh.length) continue;
+    const entries = hist.h[k] || (hist.h[k] = []);
+    for (const [d, price] of fresh) { entries.push([dateIdx(d), price]); added++; }
+    // keep the record in date order, and drop points that repeat the price
+    entries.sort((a, b) => hist.d[a[0]] < hist.d[b[0]] ? -1 : hist.d[a[0]] > hist.d[b[0]] ? 1 : 0);
+    hist.h[k] = entries.filter((e, i) => i === 0 || Math.abs(e[1] - entries[i - 1][1]) > 0.0001);
+  }
+  if (added) console.log(`price history: backfilled ${added} point(s) from invoice dates`);
+}
+
 const changes = [];
 let seeded = 0, onSale = 0;
 for (const o of offers) {
@@ -577,7 +611,74 @@ fs.writeFileSync(HIST_PATH, JSON.stringify(hist));
   for (const k of Object.keys(byKey)) {
     byKey[k].sort((a, b) => (dts[a[0]] < dts[b[0]] ? -1 : dts[a[0]] > dts[b[0]] ? 1 : 0));
   }
-  fs.writeFileSync(PROJ + '/data/purchases.json', JSON.stringify({ d: dts, p: byKey }));
+  /* ---------- what needs attention ----------
+     Only about what we actually BUY — the catalog has 20,745 items and almost
+     none of them are our problem. Computed here rather than on the phone
+     because finding a cheaper vendor means a name search per item per vendor,
+     which is a second of work on a laptop and far too slow in the aisle.
+     Lives in this file, not the catalog, because the list of things we buy is
+     itself the private part. */
+  const attention = { switch: [], jump: [], gone: [] };
+  const bySku = new Map(offers.map(o => [o.v + ':' + o.sku, o]));
+  try {
+    const LedgerSearch = require(PROJ + '/search.js');
+    const searchItems = offers.map(o => ({
+      v: o.v, sku: o.sku, name: o.name, brand: o.brand, cat: o.cat, pack: o.pack,
+      lbs: o.lbs, price: o.price, perLb: o.perLb, bulk: o.bulk, u: (o.upcs || []).join('|'),
+    }));
+    LedgerSearch.build(searchItems);
+    const STOP2 = new Set(['of', 'the', 'and', 'with', 'for']);
+    const bought = [...new Set(purchases.map(p => p.v + ':' + p.sku))];
+
+    for (const k of bought) {
+      const mine = bySku.get(k);
+      if (!mine) {
+        const last = purchases.filter(p => p.v + ':' + p.sku === k).sort((a, b) => a.date < b.date ? 1 : -1)[0];
+        if (last) attention.gone.push({ k, name: last.name, why: 'no longer on the price list' });
+        continue;
+      }
+      if (mine.stock === 'out' || mine.stock === 'closeout') {
+        attention.gone.push({ k, name: mine.name, why: mine.stock === 'out' ? 'out of stock' : 'closeout' });
+      }
+      // is anyone cheaper for the same thing?
+      if (!mine.perLb) continue;
+      const toks = tokenizeName(mine.name).filter(t => !STOP2.has(t)).slice(0, 4);
+      if (!toks.length) continue;
+      const hits = LedgerSearch.query(toks.join(' ')).hits;
+      let best = null;
+      for (const h of hits) {
+        if (h.it.v === mine.v || !h.it.perLb || h.conf < 80) continue;
+        if (!!h.it.bulk !== !!mine.bulk) continue;          // compare like with like
+        if (!best || h.it.perLb < best.it.perLb) best = h;
+      }
+      if (best && best.it.perLb < mine.perLb * 0.9) {
+        attention.switch.push({
+          k, name: mine.name, from: mine.v, fromLb: mine.perLb,
+          to: best.it.v, toName: best.it.name, toLb: best.it.perLb,
+          toSku: best.it.sku, save: +((1 - best.it.perLb / mine.perLb) * 100).toFixed(0),
+          conf: best.conf,
+        });
+      }
+    }
+    attention.switch.sort((a, b) => b.save - a.save);
+  } catch (e) { console.log('  (skipped switch check: ' + e.message + ')'); }
+
+  // price rises on things we buy, from the history recorded above
+  for (const k of new Set(purchases.map(p => p.v + ':' + p.sku))) {
+    const e = hist.h[k];
+    if (!e || e.length < 2) continue;
+    const from = e[e.length - 2][1], to = e[e.length - 1][1];
+    if (from > 0 && (to - from) / from > 0.15) {
+      const o = bySku.get(k);
+      attention.jump.push({ k, name: o ? o.name : k, from, to, pct: +(((to - from) / from) * 100).toFixed(0) });
+    }
+  }
+  attention.jump.sort((a, b) => b.pct - a.pct);
+
+  fs.writeFileSync(PROJ + '/data/purchases.json',
+    JSON.stringify({ d: dts, p: byKey, attention }));
+  console.log(`needs attention: ${attention.switch.length} cheaper elsewhere, ` +
+    `${attention.jump.length} price rise(s), ${attention.gone.length} gone or going`);
   const vendors = [...new Set(purchases.map(p => p.v))];
   console.log(`purchase records: ${purchases.length} line item${purchases.length === 1 ? '' : 's'} across ` +
     `${Object.keys(byKey).length} product${Object.keys(byKey).length === 1 ? '' : 's'} ` +

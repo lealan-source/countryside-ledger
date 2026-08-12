@@ -272,6 +272,36 @@ body[data-view="orders"] .toolbar{display:none}
 .m-grid .g-row{display:flex;justify-content:space-between;gap:14px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:12.5px}
 .m-grid .g-row .k{font-family:var(--display);font-size:10.5px;letter-spacing:.14em;color:var(--ink-soft);padding-top:2px}
 .m-grid .g-row .v{text-align:right}
+/* ---- home page (dev) ----
+   What the app opens on before you've typed anything. Each panel says plainly
+   when it has nothing to show and why, rather than sitting there empty. */
+.home{padding:4px 0 24px}
+.h-sec{margin:18px 16px 0}
+.h-hd{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding-bottom:6px;border-bottom:1.5px solid var(--rule);margin-bottom:10px}
+.h-hd .t{font-family:var(--display);font-size:11px;letter-spacing:.2em}
+.h-hd .n{font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--chalk-dim)}
+.h-empty{font-family:var(--serif);font-style:italic;font-size:12.5px;color:var(--chalk-dim);line-height:1.5}
+.h-card{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);
+  cursor:pointer;width:100%;background:none;border-left:0;border-right:0;border-top:0;text-align:left}
+.h-card:last-child{border-bottom:0}
+.h-card .m{flex:1;min-width:0}
+.h-card .nm{font-size:13px;color:var(--ink);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-card .sb{font-size:11.5px;color:var(--chalk-dim);display:block;margin-top:2px}
+.h-card .rt{font-family:var(--mono);font-size:13px;font-weight:700;white-space:nowrap;text-align:right}
+.h-card .rs{font-family:var(--mono);font-size:10.5px;color:var(--chalk-dim);display:block;text-align:right}
+.h-save{color:var(--wc);font-weight:700}
+.h-rise{color:var(--best);font-weight:700}
+/* invoices */
+.inv{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--line)}
+.inv:last-child{border-bottom:0}
+.inv .d{font-family:var(--serif);font-style:italic;font-size:12.5px}
+.inv .c{font-family:var(--mono);font-size:11px;color:var(--chalk-dim)}
+.inv .a{font-family:var(--mono);font-size:13px;font-weight:700}
+/* price index */
+.idx-chart{display:block;width:100%;height:110px;overflow:visible;margin-top:4px}
+.idx-note{font-family:var(--serif);font-style:italic;font-size:11.5px;color:var(--chalk-dim);margin-top:8px;line-height:1.5}
+
 /* ---- one-screen product view (dev) ----
    The goal: pick up the phone and in a few seconds know where we got it last
    and where we can get it. Those two answers go at the top; the spec sheet,
@@ -697,19 +727,166 @@ function searchGroups(q){
    ============================================================ */
 const COLLAPSED_PER_VENDOR = 3;
 const EXPANDED_PER_VENDOR = 40;
+/* ============================================================
+   HOME — what the app opens on before you've searched anything.
+   ============================================================ */
+const sec = (id, title, note) =>
+  `<div class="h-sec"><div class="h-hd"><span class="t">${title}</span>` +
+  `<span class="n">${note || ''}</span></div><div id="${id}">` +
+  `<div class="h-empty">Looking…</div></div></div>`;
+
+function homeSalesHTML(){
+  const s = ITEMS.filter(it => it.sale && it.was > 0)
+    .sort((a, b) => (a.price / a.was) - (b.price / b.was)).slice(0, 8);
+  if (!s.length) return `<div class="h-empty">Nothing on sale right now. A sale is worked out by
+    comparing today's price against what the item has cost us before, so this fills in as prices move.</div>`;
+  return s.map(it => `
+    <button class="h-card" data-info="${esc(key(it))}">
+      <span class="m"><span class="nm">${esc(it.name)}</span>
+        <span class="sb">${VENDORS[it.v].label} · usually <span class="was">${money(it.was)}</span></span></span>
+      <span><span class="rt">${money(it.price)}</span>
+        <span class="rs h-save">${Math.round((1 - it.price / it.was) * 100)}% off</span></span>
+    </button>`).join('');
+}
+
+function homeAttentionHTML(pur){
+  if (!pur) return `<div class="h-empty">${PURCHASES_NOTE[purchasesWhy] || PURCHASES_NOTE.notoken}</div>`;
+  const a = pur.attention || {};
+  const out = [];
+  for (const s of (a.switch || []).slice(0, 5)) out.push(`
+    <button class="h-card" data-info="${esc(s.k)}">
+      <span class="m"><span class="nm">${esc(s.name)}</span>
+        <span class="sb">${VENDORS[s.to] ? VENDORS[s.to].label : s.to} is cheaper —
+          ${money(s.toLb)}/lb vs ${money(s.fromLb)}/lb · match ${s.conf}%</span></span>
+      <span><span class="rt h-save">−${s.save}%</span><span class="rs">switch</span></span>
+    </button>`);
+  for (const j of (a.jump || []).slice(0, 5)) out.push(`
+    <button class="h-card" data-info="${esc(j.k)}">
+      <span class="m"><span class="nm">${esc(j.name)}</span>
+        <span class="sb">was ${money(j.from)} · now ${money(j.to)}</span></span>
+      <span><span class="rt h-rise">+${j.pct}%</span><span class="rs">price rise</span></span>
+    </button>`);
+  for (const g of (a.gone || []).slice(0, 5)) out.push(`
+    <button class="h-card" data-info="${esc(g.k)}">
+      <span class="m"><span class="nm">${esc(g.name)}</span>
+        <span class="sb">${esc(g.why)}</span></span>
+      <span><span class="rs">check</span></span>
+    </button>`);
+  if (!out.length) return `<div class="h-empty">Nothing needs attention. This watches the things we
+    actually buy — a vendor undercutting our usual one, a price rising more than 15%, or an item going
+    out of stock or onto closeout.</div>`;
+  return out.join('');
+}
+
+function homeInvoicesHTML(pur){
+  if (!pur) return `<div class="h-empty">${PURCHASES_NOTE[purchasesWhy] || PURCHASES_NOTE.notoken}</div>`;
+  const byDate = new Map();
+  for (const recs of Object.values(pur.p || {})){
+    for (const [di, price, qty] of recs){
+      const d = pur.d[di];
+      if (!d) continue;
+      const e = byDate.get(d) || { lines: 0, total: 0 };
+      e.lines++; e.total += price * (qty || 0);
+      byDate.set(d, e);
+    }
+  }
+  const rows = [...byDate].sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 6);
+  if (!rows.length) return '<div class="h-empty">No invoices recorded yet.</div>';
+  return rows.map(([d, e]) => `
+    <div class="inv">
+      <div><div class="d">${fmtDay(d)}</div>
+        <div class="c">${e.lines} line${e.lines === 1 ? '' : 's'} · Denver Wholesale</div></div>
+      <div class="a">${e.total ? money(e.total) : '—'}</div>
+    </div>`).join('') +
+    `<div class="idx-note">Only Denver sends invoice spreadsheets. The other four will appear here
+      once they send invoices or order history.</div>`;
+}
+
+/* A price index needs the same basket measured repeatedly. Today almost all the
+   repeat data is Denver's, and Denver is a closeout house whose prices swing on
+   liquidation lots — an index drawn from that would claim food is getting 35%
+   cheaper, which is nonsense. So it is drawn only once enough items have moved,
+   and it says why in the meantime. */
+const IDX_MIN_ITEMS = 20;
+function homeIndexHTML(hist){
+  if (!hist || !hist.h) return '<div class="h-empty">No price history yet.</div>';
+  const dates = [...hist.d].sort();
+  const series = Object.entries(hist.h).filter(([k, v]) => v.length > 1 && !k.startsWith('dw:'));
+  if (series.length < IDX_MIN_ITEMS){
+    const dw = Object.entries(hist.h).filter(([k, v]) => v.length > 1 && k.startsWith('dw:')).length;
+    return `<div class="h-empty">Not enough price history yet — ${series.length} item${series.length === 1 ? '' : 's'}
+      from the four price-list vendors have moved${dw ? `, plus ${dw} at Denver Wholesale` : ''}.
+      Denver is left out on purpose: they deal in closeouts, so their swings say nothing about food
+      prices generally. This draws itself once a few weeks of updates have gone in.</div>`;
+  }
+  const pts = [];
+  for (const d of dates){
+    let sum = 0, n = 0;
+    for (const [, v] of series){
+      let first = null, at = null;
+      for (const [di, p] of v){
+        const dd = hist.d[di];
+        if (dd > d) break;
+        if (first === null) first = p;
+        at = p;
+      }
+      if (first && at){ sum += at / first; n++; }
+    }
+    if (n) pts.push({ d, idx: (sum / n) * 100, n });
+  }
+  if (pts.length < 2) return '<div class="h-empty">Not enough dates recorded yet.</div>';
+  const W = 320, H = 110, PX = 6, PY = 16;
+  const vals = pts.map(p => p.idx);
+  const lo = Math.min(...vals, 100), hi = Math.max(...vals, 100);
+  const span = (hi - lo) || 1;
+  const x = i => PX + (W - 2 * PX) * (i / (pts.length - 1));
+  const y = v => H - PY - (H - 2 * PY) * ((v - lo) / span);
+  const line = pts.map((p, i) => `${x(i).toFixed(1)},${y(p.idx).toFixed(1)}`).join(' ');
+  const last = pts[pts.length - 1];
+  const move = last.idx - 100;
+  return `
+    <svg class="idx-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Food price index">
+      <line x1="0" y1="${y(100).toFixed(1)}" x2="${W}" y2="${y(100).toFixed(1)}"
+        stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3"></line>
+      <polyline points="${line}" fill="none" stroke="var(--rule)" stroke-width="1.6"
+        stroke-linejoin="round" vector-effect="non-scaling-stroke"></polyline>
+      <circle cx="${x(pts.length - 1).toFixed(1)}" cy="${y(last.idx).toFixed(1)}" r="3.5" fill="var(--best)"></circle>
+    </svg>
+    <div class="idx-note">${move >= 0 ? 'Up' : 'Down'}
+      <b class="${move >= 0 ? 'h-rise' : 'h-save'}">${Math.abs(move).toFixed(1)}%</b>
+      since ${fmtDay(pts[0].d)}, across ${last.n} items. Denver Wholesale is excluded — closeout
+      pricing says nothing about food prices generally.</div>`;
+}
+
+function renderHome(el){
+  el.innerHTML = `<div class="home">
+    ${sec('hAttn', 'NEEDS ATTENTION', 'things we buy')}
+    ${sec('hSale', 'ON SALE', 'under their usual price')}
+    ${sec('hInv', 'RECENT INVOICES', 'what we last bought')}
+    ${sec('hIdx', 'FOOD PRICES', 'across the price lists')}
+    <div class="h-sec"><div class="h-empty" style="text-align:center">
+      ${ITEMS.length.toLocaleString()} items across ${Object.keys(VENDORS).length} price lists —
+      search above, or shoot the shelf tag.</div></div>
+  </div>`;
+  $('#hSale').innerHTML = homeSalesHTML();
+  loadPurchases().then(p => {
+    if (state.query.trim()) return;              // user started typing meanwhile
+    const a = $('#hAttn'), i = $('#hInv');
+    if (a) a.innerHTML = homeAttentionHTML(p);
+    if (i) i.innerHTML = homeInvoicesHTML(p);
+  });
+  loadHistory().then(h => {
+    if (state.query.trim()) return;
+    const el2 = $('#hIdx');
+    if (el2) el2.innerHTML = homeIndexHTML(h);
+  });
+}
+
 function renderResults(){
   const el = $('#results');
   const q = state.query;
   if (!ITEMS.length) return; // still loading / failed — state screen already shown
-  if (!q.trim()){
-    el.innerHTML = `
-      <div class="state">
-        <div class="wheat"></div>
-        <div class="h">THE LEDGER IS OPEN</div>
-        <div class="s">${ITEMS.length.toLocaleString()} items across ${Object.keys(VENDORS).length} price lists.<br>Search an item or item # — or shoot the shelf tag.</div>
-      </div>`;
-    return;
-  }
+  if (!q.trim()){ renderHome(el); return; }
   const groups = searchGroups(q);
   if (!groups.length){
     el.innerHTML = `
@@ -1000,17 +1177,38 @@ function loadHistory(){
 /* What we actually bought, off the vendor invoices. Only Denver sends invoice
    workbooks so far, so most items have no record — the section says so plainly
    rather than implying we've never bought the thing. */
-let PURCHASES = null, purchasesPending = null;
+/* Purchase history is NOT published — it is the store's own buying record, and
+   this repo is public. On a PC the file sits beside the app; on the phone it is
+   read from the private countryside-orders repo with the same token the order
+   sheets use. No token, no purchase data, and the panels say so. */
+const GH_PURCHASES = 'https://api.github.com/repos/lealan-source/countryside-orders/contents/data/purchases.json';
+let PURCHASES = null, purchasesPending = null, purchasesWhy = '';
 function loadPurchases(){
   if (PURCHASES) return Promise.resolve(PURCHASES);
   if (!purchasesPending){
     purchasesPending = fetch('data/purchases.json')
-      .then(r => r.ok ? r.json() : null)
-      .then(j => (PURCHASES = j))
-      .catch(() => null);
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('not local')))
+      .catch(() => {
+        const t = photoCfg().gh;
+        if (!t){ purchasesWhy = 'notoken'; return null; }
+        return fetchTimeout(GH_PURCHASES, { headers: ghHeaders(t) }, 20000)
+          .then(r => {
+            if (r.status === 404){ purchasesWhy = 'norepo'; return null; }
+            if (!r.ok){ purchasesWhy = 'denied'; return null; }
+            return r.json().then(j => JSON.parse(b64dec(j.content)));
+          })
+          .catch(() => { purchasesWhy = 'offline'; return null; });
+      })
+      .then(j => (PURCHASES = j));
   }
   return purchasesPending;
 }
+const PURCHASES_NOTE = {
+  notoken: 'Your buying history isn’t published — it lives in the private countryside-orders repo. Paste your GitHub token under “Price lists ›” to see it here.',
+  norepo: 'The private countryside-orders repo doesn’t exist yet, so there’s nowhere to read your buying history from.',
+  denied: 'That GitHub token couldn’t read countryside-orders — check it under “Price lists ›”.',
+  offline: 'Couldn’t reach GitHub for your buying history. It’ll load next time you have signal.',
+};
 const INVOICED = { dw: 1 };   // vendors we actually have invoices from
 
 function lastBoughtHTML(it, pur){
