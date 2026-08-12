@@ -10,7 +10,7 @@
    other. This file is byte-identical in both places. */
 const IN_DEV = /\/dev\//.test(self.registration.scope);
 const PREFIX = IN_DEV ? 'csl-dev-' : 'csl-live-';
-const VERSION = PREFIX + 'v25';
+const VERSION = PREFIX + 'v26';
 const RUNTIME = VERSION + '-runtime';
 const LEGACY = 'countryside-ledger-';   // pre-split naming; only live clears it
 const SHELL = [
@@ -52,6 +52,24 @@ self.addEventListener('fetch', e => {
           return res;
         })
         .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  // The dev copy takes its own files from the NETWORK first. Cache-first is
+  // right for the live app in the aisles, but in dev it means an edit to
+  // search.js or the catalog changes nothing until VERSION is bumped — the page
+  // reloads while the engine behind it stays stale. Cache is still written, so
+  // dev keeps working offline; it just stops lying about what it is running.
+  if (IN_DEV && new URL(req.url).origin === self.location.origin) {
+    e.respondWith(
+      fetch(req).then(res => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(RUNTIME).then(c => c.put(req, copy));
+        }
+        return res;
+      }).catch(() => caches.match(req))
     );
     return;
   }
