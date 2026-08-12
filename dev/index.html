@@ -798,6 +798,7 @@ function nameTokens(name){
       .filter(t => t.length > 2 && !STOP.has(t))
   )];
 }
+const MIN_MATCH = 70;   // cross-vendor matches below this are hidden as noise
 function closestMatch(it, v){
   const brand = new Set((it.brand || '').toLowerCase().split(/[^a-z]+/).filter(Boolean));
   const toks = nameTokens(it.name).filter(t => !brand.has(t)).slice(0, 4);
@@ -818,7 +819,13 @@ function closestMatch(it, v){
     }
     return b.score - a.score;
   });
-  return {it: band[0].it, sim: band[0].conf};
+  // Below MIN_MATCH the "closest" item is usually just something sharing one
+  // word — Whole Cloves matching a whole chicken, Granulated Sugar matching a
+  // zero-sugar drink. Measured across the catalog, the 60s are almost all junk
+  // and 80+ is reliable; 70 keeps the useful-but-loose middle (Sea Salt finding
+  // an iodized salt) while dropping the nonsense.
+  const best = { it: band[0].it, sim: band[0].conf };
+  return best.sim >= MIN_MATCH ? best : null;
 }
 /* ============================================================
    RENDER — comparison ticket
