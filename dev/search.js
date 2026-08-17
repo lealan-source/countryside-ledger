@@ -24,7 +24,9 @@
   const CARE_SIGNAL = /toothpaste|tooth\s*powder|soap|shampoo|lotion|deodorant|conditioner|castile/i;
 
   const NOISE_W = 0.045;    // idf-weighted precision penalty
-  const HEAD_MISS = 0.55;   // multiplier when the item names a DIFFERENT product
+  const HEAD_MISS = 0.55;      // multiplier when the item names a DIFFERENT product
+  const ONE_WORD_MISS = 0.45;  // one-word search, item merely seasoned with it
+  const NEGATED = 0.25;        // name says NO of the thing being searched for
 
   /* ---------- what does this name actually name? ----------
      "Chocolate Chip Cookies" contains every word of "chocolate chips" but is a
@@ -44,6 +46,44 @@
 
      Trailing qualifiers are cut first, so "Sea Salt (Food Grade)" heads on SALT
      rather than GRADE, and codes like NR3 or 4M are skipped. */
+  /* ---------- one-word searches ----------
+     "salt" returned 358 items, half of them things merely salted — Salt &
+     Pepper Chips, Sea Salt Popcorn — and 45 that say NO salt. The head rule
+     above was only applied to multi-word searches, on the theory that one word
+     should stay broad. It shouldn't: "salt" means salt.
+
+     But the per-vendor head above is wrong for this job. Gateway's first-word
+     rule reads "Onion Salt" as an onion, and Walnut Creek's prefix reads
+     "Spice - Garlic Salt" as a spice; both are real salts. So a one-word search
+     tests against a SET of acceptable heads — the last word of the name, plus
+     Walnut Creek's category prefix, which is what makes "Salt - Popcorn Butter"
+     read correctly as a salt. */
+  function headSet(name, v) {
+    const out = new Set();
+    let s = String(name || '');
+    if (v === 'wc') {
+      const d = s.indexOf(' - ');
+      if (d > 0) {
+        const pw = tokenize(s.slice(0, d)).words.filter(t => t.length >= 3 && !/\d/.test(t));
+        if (pw.length) out.add(pw[pw.length - 1]);
+        s = s.slice(d + 3);
+      }
+    }
+    s = s.replace(/\(.*?\)/g, ' ').split(',')[0];
+    const w = tokenize(s).words.filter(t => t.length >= 3 && !/\d/.test(t));
+    if (w.length) out.add(w[w.length - 1]);
+    return out;
+  }
+
+  /* "No Salt Almonds" and "Salt Free Seasoning" contain the word and mean the
+     opposite of it. Nothing in a token scorer notices that on its own. */
+  function negatesWord(low, w) {
+    if (w.length < 3) return false;
+    return new RegExp('\\b(no|without|zero)\\s+(added\\s+)?' + w + '\\b').test(low)
+      || new RegExp('\\b' + w + '[\\s-]*free\\b').test(low)
+      || new RegExp('\\bun' + w + '(ed)?\\b').test(low);
+  }
+
   function headOf(name, v) {
     let s = String(name || '');
     if (v === 'wc') {
@@ -148,6 +188,8 @@
       return {
         nameWords: name.words, all, brandWords, sizes, nameSet, catSet, headWords, v: it.v,
         head: headOf(it.name, it.v),
+        heads: headSet(it.name, it.v),
+        low: String(it.name || '').toLowerCase(),
         candy: CANDY_SIGNAL.test(text) || /candy/i.test(it.cat || ''),
         care: CARE_SIGNAL.test(text),
         upcs: (it.u ? it.u.split('|') : []).map(u => u.replace(/^0+/, '')),
@@ -229,6 +271,7 @@
     if (!Q.words.length && !Q.sizes.length) return { hits: [], intent: Q.intent };
     const hits = [];
     const QSET = new Set(Q.words);   // hoisted: was rebuilt per item word
+    const qLow = q.toLowerCase();
     // what the SEARCH names — people type natural English, so the head is last
     const qHead = Q.words.length ? Q.words[Q.words.length - 1] : null;
 
@@ -283,6 +326,19 @@
       // on purpose.
       if (qHead && m.head && Q.words.length > 1 && !creditFor(m.head, QSET)) {
         score *= HEAD_MISS;
+      }
+      // one-word search: the word has to name the thing, not season it
+      if (Q.words.length === 1 && m.heads && m.heads.size) {
+        let named = false;
+        for (const h of m.heads) if (creditFor(Q.words[0], new Set([h]))) { named = true; break; }
+        if (!named) score *= ONE_WORD_MISS;
+      }
+      // "No Salt", "Salt Free", "Unsalted" — the word is there, the thing isn't.
+      // Unless the SEARCH itself asked for the absence: someone typing "gluten
+      // free baking soda" wants exactly the item that says gluten free.
+      for (const w of Q.words) {
+        if (negatesWord(qLow, w)) continue;
+        if (negatesWord(m.low, w)) { score *= NEGATED; break; }
       }
 
       // context weighting with the form-word exemption

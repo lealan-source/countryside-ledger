@@ -724,13 +724,24 @@ async function loadCatalog(){
 function searchItems(q){
   return LedgerSearch.query(q).hits;
 }
+/* The engine floors its confidence at 60%, so a hopeless match still reads
+   "60%" and gets listed. Searching "salt" returned 358 items — 317 of them
+   sitting on that floor, including every "No Salt" product in the catalog.
+   Anything on the floor is the engine saying it is guessing, so it is left out
+   and counted instead. If EVERYTHING is a guess we show it anyway; no results
+   is worse than weak ones. */
+const WEAK_CUT = 65;
+let weakHidden = 0;
 function searchGroups(q){
   const res = LedgerSearch.query(q);
   const mode = res.intent || state.mode;
+  const strong = res.hits.filter(h => h.conf >= WEAK_CUT);
+  const hits = strong.length ? strong : res.hits;
+  weakHidden = strong.length ? res.hits.length - strong.length : 0;
   const groups = [];
   for (const v of state.vendorOrder){
     if (state.hidden.includes(v)) continue;
-    const rows = res.hits.filter(r => r.it.v === v);
+    const rows = hits.filter(r => r.it.v === v);
     if (!rows.length) continue;
     const best = Math.max(...rows.map(r => r.score));
     rows.sort((a, b) => {
@@ -979,6 +990,10 @@ function renderResults(){
   } else if (state.expanded){
     if (capped) html += `<div class="t-note">Showing the top ${EXPANDED_PER_VENDOR} per vendor — narrow the search to see the rest.</div>`;
     html += `<button class="btn-more" id="btnMore">SHOW FEWER</button>`;
+  }
+  if (weakHidden > 0){
+    html += `<div class="t-note">${weakHidden.toLocaleString()} weak match${weakHidden === 1 ? '' : 'es'} left out —
+      items that only mention “${esc(q)}” rather than being it.</div>`;
   }
   el.innerHTML = html;
   const more = $('#btnMore');

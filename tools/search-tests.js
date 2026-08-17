@@ -222,5 +222,39 @@ console.log('— product type, not flavour —');
     chips.length ? chips.map(h => h.it.name).join(' | ') : 'no DV hits');
 }
 
+// One-word searches name a product too. "salt" meant salt, not salted things,
+// and certainly not the 45 items whose names say NO salt.
+console.log('— one word means the thing itself —');
+{
+  const salt = q('salt');
+  const negated = /\b(no|without)[\s-]*(added\s+)?salt|unsalted|salt[\s-]*free/i;
+  // the app only shows matches at 65%+; the test that matters is what survives
+  // that cut, not the top 20 — the top was already fine before this change
+  const strong = salt.filter(h => h.conf >= 65);
+  const bad = strong.filter(h => negated.test(h.it.name));
+  check('"salt": no No-Salt product survives the weak cut', salt.length ? bad.length === 0 : null,
+    bad.length ? `${bad.length} of ${strong.length}: ` + bad.slice(0, 2).map(h => h.it.name).join('; ')
+      : `${strong.length} strong of ${salt.length} hits`);
+
+  const top5 = salt.slice(0, 5);
+  const notSalt = top5.filter(h => !/salt/i.test(h.it.name));
+  check('"salt" top 5 are all salts', top5.length ? notSalt.length === 0 : null,
+    notSalt.map(h => h.it.name).join('; '));
+
+  // the seasoned salts must survive — they are salt, however the vendor writes it
+  for (const [label, re] of [['Gateway "Onion Salt"', /^onion salt/i],
+                             ['Walnut Creek "Spice - Garlic Salt"', /^spice - garlic salt/i]]){
+    const found = salt.findIndex(h => re.test(h.it.name));
+    check(`"salt" still finds ${label}`, found >= 0 && found < 25,
+      found < 0 ? 'not in results at all' : 'rank #' + (found + 1));
+  }
+
+  // asking FOR an absence must not be treated as one
+  const gf = q('gluten free baking soda');
+  check('"gluten free" is a request, not a negation',
+    gf.length ? /gluten free/i.test(gf[0].it.name) : null,
+    gf.length ? gf[0].it.name : 'no hits');
+}
+
 console.log(`\n${pass} passed · ${fail} failed · ${skip} skipped`);
 process.exit(fail ? 1 : 0);
