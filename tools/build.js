@@ -22,7 +22,11 @@ function detectVendor(wb) {
   for (const t of tabs) {
     const row0 = (XLSX.utils.sheet_to_json(wb.Sheets[t], { header: 1, defval: '' })[0] || [])
       .map(x => String(x).toLowerCase().trim());
-    if (row0.includes('item number') && row0.includes('product name') && row0.includes('pack size')) return 'wc';
+    // 'main category' is required as well: those three columns alone are generic
+    // enough that a POS item export would be claimed as a Walnut Creek price
+    // sheet and silently rewrite 5,265 items with the wrong prices.
+    if (row0.includes('item number') && row0.includes('product name')
+        && row0.includes('pack size') && row0.includes('main category')) return 'wc';
   }
   if (tabs.includes('Products')) return 'gw';
   return null;

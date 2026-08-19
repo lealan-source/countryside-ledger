@@ -11,7 +11,8 @@ const SW = path.join(PROJ, 'sw.js');
 const FORCE = process.argv.includes('--force');
 // Explicit list — never `git add -A`, so Price Sheets and Product Images can't
 // ride along even if .gitignore were ever wrong.
-const PUBLISH = ['data/catalog.json', 'data/history.json', 'images', 'sw.js', 'Price Changes.md'];
+const PUBLISH = ['index.html', 'search.js', 'sw.js',
+  'data/catalog.json', 'data/history.json', 'images', 'Price Changes.md'];
 
 const run = (cmd, args, opts) =>
   spawnSync(cmd, args, { cwd: PROJ, stdio: 'inherit', ...opts });
@@ -73,13 +74,16 @@ rl.question('Publish this to the app? Everyone\'s phones update next time they o
 function publish() {
   /* bump the service worker so installed apps actually pick the new prices up */
   const sw = fs.readFileSync(SW, 'utf8');
-  const m = sw.match(/const VERSION = 'countryside-ledger-v(\d+)';/);
+  // sw.js builds its cache name as PREFIX + 'vNN' so the live app and the dev
+  // copy namespace separately; the old literal name no longer appears in the
+  // file, and this silently stopped every publish after the y/N prompt.
+  const m = sw.match(/const VERSION = PREFIX + 'v(d+)';/);
   if (!m) {
     console.log('\nCouldn\'t find the VERSION line in sw.js — stopping so nothing ships half-done.');
     process.exit(1);
   }
   const next = +m[1] + 1;
-  fs.writeFileSync(SW, sw.replace(m[0], `const VERSION = 'countryside-ledger-v${next}';`));
+  fs.writeFileSync(SW, sw.replace(m[0], `const VERSION = PREFIX + 'v${next}';`));
   console.log(`\nservice worker: v${m[1]} → v${next}`);
 
   run('git', ['add', '--', ...PUBLISH]);
